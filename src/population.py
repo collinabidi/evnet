@@ -34,7 +34,7 @@ class Layer:
 	def print_layer(self):
 		print(self.__dict__)
 	
-	# TODO
+	# todo
 	def mutate_layer(self):
 		self.activation = random.choice(self.activation_list)
 
@@ -69,7 +69,7 @@ class Individual:
 		for l in self.layers:
 			l.print_layer()
 
-	# TODO returns a new individual that's based on the original one but mutated
+	# todo returns a new individual that's based on the original one but mutated
 	def mutate(self, prob=0.3):
 		new_individual = copy.deepcopy(self.layers)
 		for layer in new_individual:
@@ -79,12 +79,13 @@ class Individual:
 				layer.mutate_layer()
 		return Individual(new_individual)
 
-	# TODO
+	# todo
 	def crossover(self, mate):
-
-	# TODO
+		return
+	
+	# todo
 	def evaluate_fitness(self):
-
+		return
 
 
 
