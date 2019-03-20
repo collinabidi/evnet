@@ -27,30 +27,21 @@ class Layer:
 	def get_children(self):
 		return self.children
 	
-	def set_children(self,child):
-		self.children = child
-	
-	def set_parents(self,parents):
-		self.parents = parents
-	
-	def set_activation(self,activation):
-		self.activation = activation
-	
 	def print_layer(self):
 		print(self.__dict__)
 	
-	# mutate the layer based on input parameters
 	def mutate_layer(self):
 		self.activation = random.choice(self.activation_list)
 
 class Individual:
 	"""
 	This class defines a chromosome for the genetic algorithm. Each individual has
-	a unique name, and a linked list of Layers that will be used when building the
+	a unique name, and a list of Layers that will be used when building the
 	keras model from the Individual
 	"""
-	edges = {}
-	layers = []
+
+	# encoded version of the layers in case we want to use it for stuff idk
+	gene = ""
 
 	def __init__(self,gene,fitness=-1):
 		# initialize linked list using the input list of dictionaries
@@ -84,6 +75,16 @@ class Individual:
 				layer.mutate_layer()
 		return Individual(new_individual)
 
+	def crossover(self, mate):
+
+
+	def evaluate_fitness(self):
+
+
+	# this is where we'll convert the model into a keras representation for training and evaluation
+	def compile_model(self, train_data, test_data, validation_data):
+
+
 
 class Population:
 	"""
@@ -112,7 +113,8 @@ class Population:
 
 
 if __name__ == '__main__':
-	p = []
+
+	# arbitrary model for testing
 	input_layer = {'name':'input_layer','activation':'relu','parents':None,'children':'conv1'}
 	conv1 = {'name':'conv1','activation':'relu','parents':'input','children':'conv2'}
 	conv2 = {'name':'conv2','activation':'relu','parents':'conv1','children':'max1'}
@@ -120,5 +122,6 @@ if __name__ == '__main__':
 	output = {'name':'output_layer','activation':'softmax','parents':'max1','children':None}
 
 	p = [input_layer,conv1,conv2,max1,output]
+	
 	pop = Population(p)
 	pop.print_population()
