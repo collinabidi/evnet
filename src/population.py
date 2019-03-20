@@ -26,10 +26,15 @@ class Layer:
 
 	def get_children(self):
 		return self.children
+
+	# TODO returns an encoded string version of the layer
+	def get_encoding(self):
+		return
 	
 	def print_layer(self):
 		print(self.__dict__)
 	
+	# TODO
 	def mutate_layer(self):
 		self.activation = random.choice(self.activation_list)
 
@@ -44,7 +49,6 @@ class Individual:
 	gene = ""
 
 	def __init__(self,gene,fitness=-1):
-		# initialize linked list using the input list of dictionaries
 		self.head = None
 		self.print_individual()
 		self.layers = []
@@ -65,7 +69,7 @@ class Individual:
 		for l in self.layers:
 			l.print_layer()
 
-	# returns a new individual that's based on the original one but mutated
+	# TODO returns a new individual that's based on the original one but mutated
 	def mutate(self, prob=0.3):
 		new_individual = copy.deepcopy(self.layers)
 		for layer in new_individual:
@@ -75,14 +79,12 @@ class Individual:
 				layer.mutate_layer()
 		return Individual(new_individual)
 
+	# TODO
 	def crossover(self, mate):
 
-
+	# TODO
 	def evaluate_fitness(self):
 
-
-	# this is where we'll convert the model into a keras representation for training and evaluation
-	def compile_model(self, train_data, test_data, validation_data):
 
 
 
@@ -122,6 +124,6 @@ if __name__ == '__main__':
 	output = {'name':'output_layer','activation':'softmax','parents':'max1','children':None}
 
 	p = [input_layer,conv1,conv2,max1,output]
-	
+
 	pop = Population(p)
 	pop.print_population()
