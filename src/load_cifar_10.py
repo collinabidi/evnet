@@ -1,23 +1,17 @@
-#! python3
+
+import cv2
+import numpy as np
+
 from keras.datasets import cifar10
 from keras import backend as K
 from keras.utils import np_utils
 
-import cv2
-
-import numpy as np
-
-
-# load cifar10 data
 nb_train_samples = 3000 # 3000 training samples
 nb_valid_samples = 100 # 100 validation samples
 num_classes = 10
 
-img_rows, img_cols = 224, 224 # Resolution of inputs
-channel = 3
-num_classes = 10
-
 def load_cifar10_data(img_rows, img_cols):
+
     # Load cifar10 training and validation sets
     (X_train, Y_train), (X_valid, Y_valid) = cifar10.load_data()
 

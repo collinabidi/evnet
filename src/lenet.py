@@ -14,8 +14,9 @@ class LeNet:
         model = Sequential()
 
         # first set of CONV => RELU => POOL
-        model.add(Convolution2D(20, 5, 5, border_mode="same",
-            input_shape=(depth, height, width)))
+        # apply a 5x5 convolution with 20 output filters on a depth(channel) x height x width resolution image
+        model.add(Convolution2D(20, 5, 5, border_mode="same", input_shape=(depth, height, width)))
+        # now model.output_shape == (None,20,height,width)
         model.add(Activation("relu"))
         model.add(MaxPooling2D(pool_size=(2, 2), strides=(2, 2)))
 
