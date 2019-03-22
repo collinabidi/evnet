@@ -1,12 +1,16 @@
 #! python3
 import random
 import copy
+import math
+
 from keras.models import Sequential
-from keras.layers.convolutional import Convolution2D
+from keras.layers.convolutional import Conv2D
 from keras.layers.convolutional import MaxPooling2D
 from keras.layers.core import Activation
 from keras.layers.core import Flatten
 from keras.layers.core import Dense
+from keras.optimizers import SGD
+from sklearn.metrics import log_loss
 
 from load_cifar_10 import load_cifar10_data
 
@@ -40,11 +44,11 @@ class Layer:
 		if 'activation' in self.__dict__:
 			print('mutated activation')
 			self.activation = random.choice(self.activation_list)
-		if 'strides' in self.__dict__:
-			print('\tmutated stride')
-			rand_factor = random.choice([0.5,1.0,2.0])
-			for i in range(len(self.strides)):
-				self.strides[i] = self.strides[i] * rand_factor
+		#if 'strides' in self.__dict__:
+		#	print('\tmutated stride')
+		#	rand_factor = random.choice([0.5,1.0,2.0])
+		#	for i in range(len(self.strides)):
+		#		self.strides[i] = int(math.floor(self.strides[i] * rand_factor))
 
 class Individual:
 	"""
@@ -69,7 +73,6 @@ class Individual:
 		return self
 
 	def append_layer(self, l):
-		print('\ttype ' + str(type(l)))
 		layer = Layer(l)
 		self.layers.append(layer)
 	
@@ -80,7 +83,7 @@ class Individual:
 		return
 
 	# todo returns a new individual that's based on the original one but mutated
-	def mutate(self, name="default name", prob=0.3):
+	def mutate(self, name="default name", prob=0.1):
 		new_individual = copy.deepcopy(self.layers)
 		for layer in new_individual:
 			r = random.uniform(0.0,1.0)
@@ -100,10 +103,13 @@ class Individual:
 	def build_model(self):
 		model = Sequential()
 		for layer in self.layers:
-			if layer.type is 'Convolution2D':
-				model.add(Convolution2D(layer.nb_filter,layer.nb_row,layer.nb_col,layer.border_mode,layer.input_shape))
+			print(layer.__dict__)
+			if layer.type is 'Convolution2D' and 'input_shape' in layer.__dict__:
+				model.add(Conv2D(layer.nb_filter,layer.nb_row,padding=layer.border_mode,input_shape=layer.input_shape))
+			elif layer.type is 'Convolution2D' and 'input_shape' not in layer.__dict__:
+				model.add(Conv2D(layer.nb_filter,layer.nb_row,padding=layer.border_mode))
 			elif layer.type is 'MaxPooling2D':
-				model.add(MaxPooling2D(layer.pool_size,layer.strides))
+				model.add(MaxPooling2D(pool_size=layer.pool_size,strides=layer.strides,data_format="channels_first"))
 			elif layer.type is 'Activation':
 				model.add(Activation(layer.activation))
 			elif layer.type is 'Dense':
@@ -164,19 +170,19 @@ if __name__ == '__main__':
 	num_classes = 10
 
 	# lenet model for testing
-	conv1 = {'name':'conv1','type':'Convolution2D','border_mode':'same','nb_filter':20,'nb_row':5,'nb_col':5,'input_shape':[channel,img_rows,img_cols]}
+	conv1 = {'name':'conv1','type':'Convolution2D','border_mode':'same','nb_filter':20,'nb_row':5,'nb_col':5,'input_shape':(img_rows,img_cols,channel)}
 	activation1 = {'name':'activation1','type':'Activation','activation':'relu'}
-	max1 = {'name':'max1','type':'MaxPooling2D','pool_size':[2,2],'strides':[2,2]}
+	max1 = {'name':'max1','type':'MaxPooling2D','pool_size':(2,2),'strides':(2,2)}
 
 	conv2 = {'name':'conv2','type':'Convolution2D','border_mode':'same','nb_filter':50,'nb_row':5,'nb_col':5}
 	activation2 = {'name':'activation2','type':'Activation','activation':'relu'}
-	max2 = {'name':'max2','type':'MaxPooling2D','pool_size':[2,2],'strides':[2,2]}
+	max2 = {'name':'max2','type':'MaxPooling2D','pool_size':(2,2),'strides':(2,2)}
 
-	flatten1 = {'name':'flatten1'}
-	dense1 = {'name':'dense2','output_dim':500}
+	flatten1 = {'name':'flatten1','type':'Flatten'}
+	dense1 = {'name':'dense2','type':'Dense','output_dim':500}
 	activation3 = {'name':'activation3','type':'Activation','activation':'relu'}
 
-	dense2 = {'name':'dense2','output_dim':num_classes}
+	dense2 = {'name':'dense2','type':'Dense','output_dim':num_classes}
 	activation4 = {'name':'activation4','type':'Activation','activation':'softmax'}
 
 
@@ -184,7 +190,7 @@ if __name__ == '__main__':
 
 	pop = Population(p)
 
-	pop.print_population()
+	#pop.print_population()
 
 
 	# Example to fine-tune on 3000 samples from Cifar10
