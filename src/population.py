@@ -119,7 +119,7 @@ class Individual:
 			elif layer.type is 'Dropout':
 				model.add(Dropout(layer.p))
 			elif layer.type is 'ZeroPadding2D':
-				model.add(ZeroPadding2D(layer.stride))
+				model.add(ZeroPadding2D(strides=layer.stride))
 
 		# Learning rate is changed to 0.001
 		sgd = SGD(lr=1e-3, decay=1e-6, momentum=0.9, nesterov=True)
