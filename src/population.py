@@ -3,13 +3,16 @@ import random
 import copy
 import math
 
+import numpy as np
+
 from keras.models import Sequential
+from keras.utils import plot_model
 from keras.layers.convolutional import Conv2D
 from keras.layers.convolutional import MaxPooling2D
 from keras.layers.core import Activation
 from keras.layers.core import Flatten
 from keras.layers.core import Dense
-from keras.optimizers import SGD
+from keras.optimizers import SGD, Adam
 from sklearn.metrics import log_loss
 
 from load_cifar_10 import load_cifar10_data
@@ -22,7 +25,7 @@ class Layer:
 	"""
 	This class defines a general purpose Layer type that has unique parameters
 	"""
-	activation_list = ['tanh','softmax','relu','sigmoid']
+	filter_height, filter_width, stride_height, stride_width, num_filters = 0,0,0,0,0
 
 	def __init__(self,gene):
 		temp = []
@@ -32,18 +35,21 @@ class Layer:
 			temp = gene
 
 		self.__dict__.update((k,v) for k,v in temp.items())
-		print("\tinitializing layer " + self.__dict__['name'])
 	
 	def print_layer(self):
 		print(self.__dict__)
 
 	def as_list(self):
 		return self.__dict__
+
+	# converts the layer to a string vector representation
+	# FORMAT: type,filter_height,filter_width,stride_height,stride_width,num_filters!
+	def layer_to_vec(self):
+		return str(self.type + ',' + self.filter_height+','+self.filter_width+','+self.stride_height+','+self.stride_width+','+self.num_filters+'!')
 	
 	def mutate_layer(self):
 		if 'activation' in self.__dict__:
-			print('mutated activation')
-			self.activation = random.choice(self.activation_list)
+			self.activation = random.choice(['tanh','softmax','relu','sigmoid'])
 		#if 'strides' in self.__dict__:
 		#	print('\tmutated stride')
 		#	rand_factor = random.choice([0.5,1.0,2.0])
@@ -62,12 +68,13 @@ class Individual:
 	layers = []
 
 	def __init__(self,gene,name,fitness=-1):
-		print("initializing " + name)
 		self.name = name
 		self.layers = []
 		for layer in gene:
 			self.append_layer(layer)
 		self.fitness = fitness
+		self.num_layers = len(self.layers)
+
 	
 	def __iter__(self):
 		return self
@@ -82,6 +89,7 @@ class Individual:
 			l.print_layer()
 		return
 
+
 	# todo returns a new individual that's based on the original one but mutated
 	def mutate(self, name="default name", prob=0.1):
 		new_individual = copy.deepcopy(self.layers)
@@ -92,15 +100,12 @@ class Individual:
 				layer.mutate_layer()
 		return Individual(new_individual,name)
 
-	# todo
-	def crossover(self, mate):
-		return
-	
-	# todo
-	def evaluate_fitness(self, train_data):
-		return
+	# returns a copy
+	def new_copy(self, name="default name", prob=0.1):
+		new_individual = copy.deepcopy(self.layers)
+		return Individual(new_individual,name)
 
-	def build_model(self):
+	def build_model(self,learn_rate=0.001):
 		model = Sequential()
 		for layer in self.layers:
 			print(layer.__dict__)
@@ -122,11 +127,29 @@ class Individual:
 				model.add(ZeroPadding2D(strides=layer.stride))
 
 		# Learning rate is changed to 0.001
-		sgd = SGD(lr=1e-3, decay=1e-6, momentum=0.9, nesterov=True)
-		model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
+		sgd = SGD(lr=learn_rate, decay=1e-6, momentum=0.9, nesterov=True)
+		adam = Adam(lr=learn_rate,beta_1=0.9,beta_2=0.999,epsilon=1e-08)
+		model.compile(optimizer=adam, loss='categorical_crossentropy', metrics=['accuracy'])
 
 		return model
 
+
+def plot_history(histories, key='binary_crossentropy'):
+	plt.figure(figsize=(16,10))
+	cmap = plt.get_cmap('jet_r')
+
+	i = 1
+	for name, history in histories:
+		color = cmap(float(i)/len(histories))
+		i = i+1
+		plt.plot(history.history['acc'],linestyle='-',c=color,label=str(name+' acc'))
+		plt.plot(history.history['val_acc'],linestyle='--',c=color,label=str(name+' val_acc'))
+	plt.xlabel('Epochs')
+	plt.ylabel(key.replace('_',' ').title())
+	plt.legend()
+
+	plt.xlim([0,max(history.epoch)])
+	plt.show()
 
 
 class Population:
@@ -134,6 +157,7 @@ class Population:
 	This class defines an unsorted population of Individuals for use in genetic algorithms
 	"""
 	population = []
+	histories = []
 
 	def __init__(self,model,size=10,crossover=0.8,elitism=0.1,mutation=0.5):
 		print("initializing population")
@@ -153,24 +177,32 @@ class Population:
 			individual.print_individual()
 
 	def train_evaluate_population(self,X_train,Y_train,batch_size,nb_epoch,X_valid,Y_valid):
+		print("TRAINING GRANNY")
+		model = self.model.build_model(learn_rate=0.001)
+		history = model.fit(X_train, Y_train, batch_size=batch_size, epochs=nb_epoch, shuffle=True, verbose=1, validation_data=(X_valid, Y_valid),)
+		predictions_valid = model.predict(X_valid, batch_size=batch_size, verbose=1)
+		score = log_loss(Y_valid, predictions_valid)
+		print("fitness score: " + str(score))
+
 		for individual in self.population:
-			model = individual.build_model()
-			model.fit(X_train, Y_train, batch_size=batch_size, nb_epoch=nb_epoch, shuffle=True, verbose=1, validation_data=(X_valid, Y_valid),)
+			model = individual.build_model(learn_rate=0.001)
+			history = model.fit(X_train, Y_train, batch_size=batch_size, epochs=nb_epoch, shuffle=True, verbose=1, validation_data=(X_valid, Y_valid),)
 			predictions_valid = model.predict(X_valid, batch_size=batch_size, verbose=1)
 			score = log_loss(Y_valid, predictions_valid)
 			print("Individual " + str(individual.name) + " fitness score: " + str(score))
-
-
+			self.histories.append(history)
+		plot_history([(name,history) for name, history in zip([i.name for i in self.population],self.histories)])
 
 
 if __name__ == '__main__':
+	from matplotlib import pyplot as plt
 
-	img_rows, img_cols = 224, 224 # Resolution of inputs
-	channel = 3
+	img_rows, img_cols = 32, 32 # Resolution of inputs
+	channel = 1 # greyscale
 	num_classes = 10
 
 	# lenet model for testing
-	conv1 = {'name':'conv1','type':'Convolution2D','border_mode':'same','nb_filter':20,'nb_row':5,'nb_col':5,'input_shape':(img_rows,img_cols,channel)}
+	conv1 = {'name':'conv1','type':'Convolution2D','border_mode':'same','nb_filter':20,'nb_row':5,'nb_col':5,'input_shape':(channel,img_rows,img_cols)}
 	activation1 = {'name':'activation1','type':'Activation','activation':'relu'}
 	max1 = {'name':'max1','type':'MaxPooling2D','pool_size':(2,2),'strides':(2,2)}
 
@@ -188,16 +220,22 @@ if __name__ == '__main__':
 
 	p = [conv1,activation1,max1,conv2,activation2,max2, flatten1, dense1, activation3, dense2, activation4]
 
-	pop = Population(p)
+	pop = Population(p,size=5)
 
 	#pop.print_population()
 
 
 	# Example to fine-tune on 3000 samples from Cifar10
-	batch_size = 16 
-	nb_epoch = 10
+	batch_size = 64 
+	nb_epoch = 50
 
-	X_train, Y_train, X_valid, Y_valid = load_cifar10_data(img_rows, img_cols)
+	X_train, Y_train, X_valid, Y_valid = load_cifar10_data(img_rows, img_cols, nb_train_samples=5000,nb_valid_samples=500)
+	X_train,X_valid = X_train[:,None,:,:], X_valid[:,None,:,:]
+	
+	# add noise to training data
+	std = np.std(X_train)
+	mean = np.mean(X_train)
+	noisy = X_train + np.random.normal(mean,std*0.3,X_train.shape)
+	X_train_noisy = np.clip(noisy,0,255)
 
-	pop.train_evaluate_population(X_train,Y_train,batch_size,nb_epoch,X_valid,Y_valid)
-
+	pop.train_evaluate_population(X_train_noisy,Y_train,batch_size,nb_epoch,X_valid,Y_valid)

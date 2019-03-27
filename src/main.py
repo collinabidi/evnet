@@ -1,42 +1,31 @@
 # based on https://flyyufelix.github.io/2016/10/08/fine-tuning-in-keras-part2.html
-import random
-import json
-import array
+import autokeras as ak
+from load_cifar_10 import load_cifar10_data
+from autokeras import ImageClassifier
+from sklearn import preprocessing
+import numpy as np
 
-from deap import base
-from deap import creator
-from deap import tools
+def load_images():
+	img_rows, img_cols = 32,32
+	X_train, Y_train, X_valid, Y_valid = load_cifar10_data(img_rows, img_cols)
+	Y_train,Y_valid = np.array([np.argmax(i) for i in Y_train]),np.array([np.argmax(i) for i in Y_valid])
 
-import pprint
+	print("X_train shape: %s\nY_train shape: %s\nX_valid shape: %s\nY_valid shape: %s" % (str(X_train.shape),str(Y_train.shape),str(X_valid.shape),str(Y_valid.shape)))
+	return X_train, Y_train, X_valid, Y_valid
 
-population_size = 4
-num_generations = 4
-gene_length = 10
 
-JSON_PATH = "/home/collin/Desktop/EA/"
+def run():
+	x_train, y_train, x_test, y_test = load_images()
+	x_train = x_train.reshape(x_train.shape+(1,))
+	x_test = x_test.reshape(x_test.shape+(1,))
+	print(y_train[10:])
+	# After loading train and evaluate classifier.
+	clf = ImageClassifier(verbose=True, augment=False)
+	clf.fit(x_train, y_train, time_limit=12 * 60 * 60)
+	clf.final_fit(x_train, y_train, x_test, y_test, retrain=True)
+	y = clf.evaluate(x_test, y_test)
+	print(y * 100)
 
-with open(JSON_PATH+"vgg16.json", "r") as network_data:
-    network = json.load(network_data)
 
-layer_data = network["layers"]
-
-# We want to maximize accuracy
-creator.create("FitnessMax", base.Fitness, weights=(1.0,))
-creator.create("Individual", list, typecode='i', fitness=creator.FitnessMax)
-
-toolbox = base.Toolbox()
-
-# Initialize with json file
-def initPopulation(pcls, ind_init, filename):
-    with open(filename, "r") as pop_file:
-        contents = json.load(pop_file)
-    return pcls(ind_init(c) for c in contents)
-
-def initIndividual(icls, content):
-    return icls(content)
-
-# Instantiate the initializers from json file
-toolbox.register("individual_guess", initIndividual, creator.Individual)
-toolbox.register("population_guess", initPopulation, list, toolbox.individual_guess, JSON_PATH+"vgg16.json")
-
-population = toolbox.population_guess()
+if __name__ == '__main__':
+	run()
