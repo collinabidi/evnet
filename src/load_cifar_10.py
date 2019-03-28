@@ -6,6 +6,8 @@ from keras.datasets import cifar10
 from keras import backend as K
 from keras.utils import np_utils
 
+from scipy import stats
+
 num_classes = 10
 
 def load_cifar10_data(img_rows, img_cols, nb_train_samples=1000,nb_valid_samples=200):
@@ -29,8 +31,21 @@ def load_cifar10_data(img_rows, img_cols, nb_train_samples=1000,nb_valid_samples
 
 if __name__ == "__main__":
     from matplotlib import pyplot as plt
-    img_rows,img_cols = 32, 32
-    X_train, Y_train, X_valid, Y_valid = load_cifar10_data(img_rows, img_cols)
+    img_cols,img_rows = 32,32
+    X_train, Y_train, X_valid, Y_valid = load_cifar10_data(img_rows, img_cols, nb_train_samples=3000,nb_valid_samples=500)
+    X_train,X_valid = X_train[:,None,:,:], X_valid[:,None,:,:]
+    Y_train,Y_valid = np.array([np.argmax(i) for i in Y_train]),np.array([np.argmax(i) for i in Y_valid])
+
+    bins = np.linspace(-1,10,24)
+    plt.hist(Y_train,bins,alpha=0.5,label='Y_train')
+    plt.hist(Y_valid,bins,alpha=0.5,label='Y_valid')
+    plt.show()
+
+    # add noise to training data
+    std = np.std(X_train)
+    mean = np.mean(X_train)
+    noisy = X_train + np.random.normal(mean,std*0.3,X_train.shape)
+    X_train_noisy = np.clip(noisy,0,255)
 
     fig = plt.figure(figsize=(32,32))
     columns=3

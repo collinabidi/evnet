@@ -14,8 +14,14 @@ from keras.layers.core import Flatten
 from keras.layers.core import Dense
 from keras.optimizers import SGD, Adam
 from sklearn.metrics import log_loss
+from scipy.interpolate import make_interp_spline, BSpline
 
 from load_cifar_10 import load_cifar10_data
+
+
+
+seed = 7
+np.random.seed(seed)
 
 # population class defines the individual/gene and linked list that make up a representation of
 # a population of individuals that are made up of layers
@@ -49,7 +55,7 @@ class Layer:
 	
 	def mutate_layer(self):
 		if 'activation' in self.__dict__:
-			self.activation = random.choice(['tanh','softmax','relu','sigmoid'])
+			self.activation = random.choice(['tanh','relu','sigmoid'])
 		#if 'strides' in self.__dict__:
 		#	print('\tmutated stride')
 		#	rand_factor = random.choice([0.5,1.0,2.0])
@@ -89,13 +95,16 @@ class Individual:
 			l.print_layer()
 		return
 
+	def set_fitness(self,score):
+		self.fitness = score
+
 
 	# todo returns a new individual that's based on the original one but mutated
 	def mutate(self, name="default name", prob=0.1):
 		new_individual = copy.deepcopy(self.layers)
 		for layer in new_individual:
 			r = random.uniform(0.0,1.0)
-			if r < prob:
+			if r < prob and layer.name is not 'output':
 				#print('\tmutating %s from %s' % (layer.activation,layer.name))
 				layer.mutate_layer()
 		return Individual(new_individual,name)
@@ -129,27 +138,9 @@ class Individual:
 		# Learning rate is changed to 0.001
 		sgd = SGD(lr=learn_rate, decay=1e-6, momentum=0.9, nesterov=True)
 		adam = Adam(lr=learn_rate,beta_1=0.9,beta_2=0.999,epsilon=1e-08)
-		model.compile(optimizer=adam, loss='categorical_crossentropy', metrics=['accuracy'])
+		model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
 
 		return model
-
-
-def plot_history(histories, key='binary_crossentropy'):
-	plt.figure(figsize=(16,10))
-	cmap = plt.get_cmap('jet_r')
-
-	i = 1
-	for name, history in histories:
-		color = cmap(float(i)/len(histories))
-		i = i+1
-		plt.plot(history.history['acc'],linestyle='-',c=color,label=str(name+' acc'))
-		plt.plot(history.history['val_acc'],linestyle='--',c=color,label=str(name+' val_acc'))
-	plt.xlabel('Epochs')
-	plt.ylabel(key.replace('_',' ').title())
-	plt.legend()
-
-	plt.xlim([0,max(history.epoch)])
-	plt.show()
 
 
 class Population:
@@ -179,23 +170,48 @@ class Population:
 	def train_evaluate_population(self,X_train,Y_train,batch_size,nb_epoch,X_valid,Y_valid):
 		print("TRAINING GRANNY")
 		model = self.model.build_model(learn_rate=0.001)
-		history = model.fit(X_train, Y_train, batch_size=batch_size, epochs=nb_epoch, shuffle=True, verbose=1, validation_data=(X_valid, Y_valid),)
+		history = model.fit(X_train, Y_train, batch_size=batch_size, epochs=nb_epoch, shuffle=True, verbose=1,validation_split=0.2)
 		predictions_valid = model.predict(X_valid, batch_size=batch_size, verbose=1)
-		score = log_loss(Y_valid, predictions_valid)
-		print("fitness score: " + str(score))
 
 		for individual in self.population:
 			model = individual.build_model(learn_rate=0.001)
-			history = model.fit(X_train, Y_train, batch_size=batch_size, epochs=nb_epoch, shuffle=True, verbose=1, validation_data=(X_valid, Y_valid),)
+			history = model.fit(X_train, Y_train, batch_size=batch_size, epochs=nb_epoch, shuffle=True, verbose=1,validation_split=0.2)
 			predictions_valid = model.predict(X_valid, batch_size=batch_size, verbose=1)
 			score = log_loss(Y_valid, predictions_valid)
 			print("Individual " + str(individual.name) + " fitness score: " + str(score))
+			individual.set_fitness(score)
 			self.histories.append(history)
-		plot_history([(name,history) for name, history in zip([i.name for i in self.population],self.histories)])
+
+		# sort the results
+		sorted_individuals = sorted(self.population, key=lambda x: x.fitness)
+		sorted_results = {i.name:i.fitness for i in sorted_individuals}
+		print(sorted_results)
+
+		# plot top k results
+		k = 3
+		plot_history([(name,history) for name, history in zip([i.name for i in sorted_individuals],self.histories)],nb_epoch)
+
+
+def plot_history(histories,nb_epoch, key='binary_crossentropy'):
+	plt.figure(figsize=(16,10))
+	cmap = plt.get_cmap('jet_r')
+	i = 1
+	for name, history in histories:
+		color = cmap(float(i)/len(histories))
+		i = i+1
+		plt.plot(history.history['acc'],linestyle='-',c=color,label=str(name+' acc'))
+		plt.plot(history.history['val_acc'],linestyle='--',c=color,label=str(name+' val_acc'))
+
+	plt.xlabel('Epochs')
+	plt.ylabel(key.replace('_',' ').title())
+	plt.legend()
+	plt.xlim([0,max(history.epoch)])
+	plt.show()
 
 
 if __name__ == '__main__':
 	from matplotlib import pyplot as plt
+
 
 	img_rows, img_cols = 32, 32 # Resolution of inputs
 	channel = 1 # greyscale
@@ -215,21 +231,16 @@ if __name__ == '__main__':
 	activation3 = {'name':'activation3','type':'Activation','activation':'relu'}
 
 	dense2 = {'name':'dense2','type':'Dense','output_dim':num_classes}
-	activation4 = {'name':'activation4','type':'Activation','activation':'softmax'}
+	activation4 = {'name':'output','type':'Activation','activation':'softmax'}
 
-
+	# create population
 	p = [conv1,activation1,max1,conv2,activation2,max2, flatten1, dense1, activation3, dense2, activation4]
+	pop = Population(p,size=4)
 
-	pop = Population(p,size=5)
-
-	#pop.print_population()
-
-
-	# Example to fine-tune on 3000 samples from Cifar10
+	# Example to fine-tune on samples from Cifar10
 	batch_size = 64 
-	nb_epoch = 50
-
-	X_train, Y_train, X_valid, Y_valid = load_cifar10_data(img_rows, img_cols, nb_train_samples=5000,nb_valid_samples=500)
+	nb_epoch = 150
+	X_train, Y_train, X_valid, Y_valid = load_cifar10_data(img_rows, img_cols, nb_train_samples=5000,nb_valid_samples=2000)
 	X_train,X_valid = X_train[:,None,:,:], X_valid[:,None,:,:]
 	
 	# add noise to training data
@@ -238,4 +249,5 @@ if __name__ == '__main__':
 	noisy = X_train + np.random.normal(mean,std*0.3,X_train.shape)
 	X_train_noisy = np.clip(noisy,0,255)
 
+	# run train and evalute
 	pop.train_evaluate_population(X_train_noisy,Y_train,batch_size,nb_epoch,X_valid,Y_valid)
