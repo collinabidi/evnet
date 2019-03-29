@@ -4,6 +4,8 @@ from load_cifar_10 import load_cifar10_data
 from autokeras import ImageClassifier
 from sklearn import preprocessing
 import numpy as np
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 def load_images():
 	img_rows, img_cols = 32,32

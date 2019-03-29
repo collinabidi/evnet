@@ -18,7 +18,8 @@ from scipy.interpolate import make_interp_spline, BSpline
 
 from load_cifar_10 import load_cifar10_data
 
-
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 seed = 7
 np.random.seed(seed)
@@ -53,14 +54,14 @@ class Layer:
 	def layer_to_vec(self):
 		return str(self.type + ',' + self.filter_height+','+self.filter_width+','+self.stride_height+','+self.stride_width+','+self.num_filters+'!')
 	
-	def mutate_layer(self):
-		if 'activation' in self.__dict__:
+	def mutate_activation(self):
+		if 'activation' in self.__dict__ and self.name is not 'output':
 			self.activation = random.choice(['tanh','relu','sigmoid'])
-		#if 'strides' in self.__dict__:
-		#	print('\tmutated stride')
-		#	rand_factor = random.choice([0.5,1.0,2.0])
-		#	for i in range(len(self.strides)):
-		#		self.strides[i] = int(math.floor(self.strides[i] * rand_factor))
+
+	def mutate_kernel(self):
+		if 'nb_row' in self.__dict__ and self.name is not 'output':
+			rand_factor = random.choice([0.5,1.0,2.0])
+			self.nb_row = (int(math.floor(self.nb_row* rand_factor)),int(math.floor(self.nb_row * rand_factor)))
 
 class Individual:
 	"""
@@ -105,8 +106,10 @@ class Individual:
 		for layer in new_individual:
 			r = random.uniform(0.0,1.0)
 			if r < prob and layer.name is not 'output':
-				#print('\tmutating %s from %s' % (layer.activation,layer.name))
-				layer.mutate_layer()
+				layer.mutate_activation()
+			r = random.uniform(0.0,1.0)
+			if r < prob and layer.name is not 'output':
+				layer.mutate_kernel()
 		return Individual(new_individual,name)
 
 	# returns a copy
@@ -235,12 +238,12 @@ if __name__ == '__main__':
 
 	# create population
 	p = [conv1,activation1,max1,conv2,activation2,max2, flatten1, dense1, activation3, dense2, activation4]
-	pop = Population(p,size=4)
+	pop = Population(p,size=2)
 
 	# Example to fine-tune on samples from Cifar10
 	batch_size = 64 
-	nb_epoch = 150
-	X_train, Y_train, X_valid, Y_valid = load_cifar10_data(img_rows, img_cols, nb_train_samples=5000,nb_valid_samples=2000)
+	nb_epoch = 100
+	X_train, Y_train, X_valid, Y_valid = load_cifar10_data(img_rows, img_cols, nb_train_samples=10000,nb_valid_samples=2000)
 	X_train,X_valid = X_train[:,None,:,:], X_valid[:,None,:,:]
 	
 	# add noise to training data
