@@ -2,24 +2,25 @@
 import random
 import copy
 import math
-
 import numpy as np
 
 from keras.models import Sequential
 from keras.utils import plot_model
-from keras.layers.convolutional import Conv2D
-from keras.layers.convolutional import MaxPooling2D
-from keras.layers.core import Activation
-from keras.layers.core import Flatten
-from keras.layers.core import Dense
+from keras.layers.convolutional import Conv2D,MaxPooling2D
+from keras.layers.core import Activation,Flatten,Dense
 from keras.optimizers import SGD, Adam
+from keras.preprocessing.image import ImageDataGenerator
+from keras.models import model_from_json
+
 from sklearn.metrics import log_loss
+from scipy.misc import toimage
 from scipy.interpolate import make_interp_spline, BSpline
 
-from load_cifar_10 import load_cifar10_data
+from load_cifar_10 import load_cifar10_data, load_cifar100_data
 
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+cwd = os.getcwd()
 
 seed = 7
 np.random.seed(seed)
@@ -48,11 +49,6 @@ class Layer:
 
 	def as_list(self):
 		return self.__dict__
-
-	# converts the layer to a string vector representation
-	# FORMAT: type,filter_height,filter_width,stride_height,stride_width,num_filters!
-	def layer_to_vec(self):
-		return str(self.type + ',' + self.filter_height+','+self.filter_width+','+self.stride_height+','+self.stride_width+','+self.num_filters+'!')
 	
 	def mutate_activation(self):
 		if 'activation' in self.__dict__ and self.name is not 'output':
@@ -98,7 +94,6 @@ class Individual:
 
 	def set_fitness(self,score):
 		self.fitness = score
-
 
 	# todo returns a new individual that's based on the original one but mutated
 	def mutate(self, name="default name", prob=0.1):
@@ -170,29 +165,54 @@ class Population:
 		for individual in self.population:
 			individual.print_individual()
 
-	def train_evaluate_population(self,X_train,Y_train,batch_size,nb_epoch,X_valid,Y_valid):
-		print("TRAINING GRANNY")
-		model = self.model.build_model(learn_rate=0.001)
+	def train_evaluate_population(self,X_train,Y_train,batch_size,nb_epoch,X_valid,Y_valid,augment_ratio=2):
+		# AUGMENT DATA
+		datagen = ImageDataGenerator(zca_whitening=True)
+		datagen.fit(X_train)
+		original_length = np.size(X_train,axis=0)
+		batches = 0
+		for X_batch, y_batch in datagen.flow(X_train, Y_train, batch_size=original_length):
+			X_train = np.concatenate((X_train,X_batch),axis=0)
+			Y_train = np.concatenate((Y_train,y_batch),axis=0)
+			print(X_train.shape)
+			batches = batches + 1
+			if batches >= augment_ratio:
+				break
+
+
+		self.population.append(self.model)
+		model = self.model.build_model(learn_rate=0.003)
 		history = model.fit(X_train, Y_train, batch_size=batch_size, epochs=nb_epoch, shuffle=True, verbose=1,validation_split=0.2)
 		predictions_valid = model.predict(X_valid, batch_size=batch_size, verbose=1)
+		self.histories.append(history)
 
+		
 		for individual in self.population:
-			model = individual.build_model(learn_rate=0.001)
+			model = individual.build_model(learn_rate=0.003)
 			history = model.fit(X_train, Y_train, batch_size=batch_size, epochs=nb_epoch, shuffle=True, verbose=1,validation_split=0.2)
 			predictions_valid = model.predict(X_valid, batch_size=batch_size, verbose=1)
 			score = log_loss(Y_valid, predictions_valid)
-			print("Individual " + str(individual.name) + " fitness score: " + str(score))
 			individual.set_fitness(score)
 			self.histories.append(history)
 
+			# save model
+			model_json = model.to_json()
+			path_name = cwd+("/models/model_"+str(individual.name)+" " +str(individual.fitness))
+			with open(path_name+".json","w") as json_file:
+				json_file.write(model_json)
+			# save weights
+			model.save_weights(path_name+".h5")
+		
 		# sort the results
 		sorted_individuals = sorted(self.population, key=lambda x: x.fitness)
 		sorted_results = {i.name:i.fitness for i in sorted_individuals}
 		print(sorted_results)
 
 		# plot top k results
-		k = 3
-		plot_history([(name,history) for name, history in zip([i.name for i in sorted_individuals],self.histories)],nb_epoch)
+		k = 5
+		plot_history([(name,history) for name, history in zip([i.name for i in sorted_individuals[:k]],self.histories[:k])],nb_epoch)
+
+
 
 
 def plot_history(histories,nb_epoch, key='binary_crossentropy'):
@@ -217,11 +237,11 @@ if __name__ == '__main__':
 
 
 	img_rows, img_cols = 32, 32 # Resolution of inputs
-	channel = 1 # greyscale
-	num_classes = 10
+	channel = 3# rgb
+	num_classes = 100
 
 	# lenet model for testing
-	conv1 = {'name':'conv1','type':'Convolution2D','border_mode':'same','nb_filter':20,'nb_row':5,'nb_col':5,'input_shape':(channel,img_rows,img_cols)}
+	conv1 = {'name':'conv1','type':'Convolution2D','border_mode':'same','nb_filter':20,'nb_row':5,'nb_col':5,'input_shape':(img_rows,img_cols,channel)}
 	activation1 = {'name':'activation1','type':'Activation','activation':'relu'}
 	max1 = {'name':'max1','type':'MaxPooling2D','pool_size':(2,2),'strides':(2,2)}
 
@@ -238,19 +258,12 @@ if __name__ == '__main__':
 
 	# create population
 	p = [conv1,activation1,max1,conv2,activation2,max2, flatten1, dense1, activation3, dense2, activation4]
-	pop = Population(p,size=2)
+	pop = Population(p,size=30)
 
 	# Example to fine-tune on samples from Cifar10
 	batch_size = 64 
-	nb_epoch = 100
-	X_train, Y_train, X_valid, Y_valid = load_cifar10_data(img_rows, img_cols, nb_train_samples=10000,nb_valid_samples=2000)
-	X_train,X_valid = X_train[:,None,:,:], X_valid[:,None,:,:]
-	
-	# add noise to training data
-	std = np.std(X_train)
-	mean = np.mean(X_train)
-	noisy = X_train + np.random.normal(mean,std*0.3,X_train.shape)
-	X_train_noisy = np.clip(noisy,0,255)
-
+	nb_epoch = 35
+	X_train, Y_train, X_valid, Y_valid = load_cifar100_data(img_rows, img_cols, nb_train_samples=300,nb_valid_samples=500)
+	X_train,X_valid = X_train.astype('float32'), X_valid.astype('float32')
 	# run train and evalute
-	pop.train_evaluate_population(X_train_noisy,Y_train,batch_size,nb_epoch,X_valid,Y_valid)
+	pop.train_evaluate_population(X_train,Y_train,batch_size,nb_epoch,X_valid,Y_valid,augment_ratio=4)
