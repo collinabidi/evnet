@@ -4,13 +4,13 @@ import copy
 import math
 
 from keras.models import Sequential
-from keras.layers.convolutional import Conv2D
-from keras.layers.convolutional import MaxPooling2D
-from keras.layers.core import Activation
-from keras.layers.core import Flatten
-from keras.layers.core import Dense
-from keras.optimizers import SGD
+from keras.layers.convolutional import Conv2D, MaxPooling2D, ZeroPadding2D
+from keras.layers.core import Activation, Flatten, Dense, Dropout
+from keras.optimizers import SGD,Adam
 from sklearn.metrics import log_loss
+
+from sklearn import preprocessing
+from scipy import stats
 
 from load_cifar_10 import load_cifar10_data
 
@@ -32,7 +32,7 @@ class Layer:
 			temp = gene
 
 		self.__dict__.update((k,v) for k,v in temp.items())
-		print("\tinitializing layer " + self.__dict__['name'])
+		#print("\tinitializing layer " + self.__dict__['name'])
 	
 	def print_layer(self):
 		print(self.__dict__)
@@ -42,7 +42,7 @@ class Layer:
 	
 	def mutate_layer(self):
 		if 'activation' in self.__dict__:
-			print('mutated activation')
+			#print('mutated activation')
 			self.activation = random.choice(self.activation_list)
 		#if 'strides' in self.__dict__:
 		#	print('\tmutated stride')
@@ -62,7 +62,7 @@ class Individual:
 	layers = []
 
 	def __init__(self,gene,name,fitness=-1):
-		print("initializing " + name)
+		#print("initializing " + name)
 		self.name = name
 		self.layers = []
 		for layer in gene:
@@ -122,8 +122,9 @@ class Individual:
 				model.add(ZeroPadding2D(strides=layer.stride))
 
 		# Learning rate is changed to 0.001
+		adam = Adam(lr=0.001,beta_1=0.9,beta_2=0.999,epsilon=10**-8)
 		sgd = SGD(lr=1e-3, decay=1e-6, momentum=0.9, nesterov=True)
-		model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
+		model.compile(optimizer=adam, loss='categorical_crossentropy', metrics=['accuracy'])
 
 		return model
 
@@ -143,6 +144,8 @@ class Population:
 		self.elitism = elitism
 		self.mutation = mutation
 
+		self.population.append(self.model)
+
 		for i in range(size):
 			self.population.append(self.model.mutate(prob=mutation,name=("#"+str(i))))
 		
@@ -154,8 +157,9 @@ class Population:
 
 	def train_evaluate_population(self,X_train,Y_train,batch_size,nb_epoch,X_valid,Y_valid):
 		for individual in self.population:
+			print("Individual " + individual.name)
 			model = individual.build_model()
-			model.fit(X_train, Y_train, batch_size=batch_size, nb_epoch=nb_epoch, shuffle=True, verbose=1, validation_data=(X_valid, Y_valid),)
+			model.fit(X_train, Y_train, batch_size=batch_size, epochs=nb_epoch, shuffle=True, verbose=1, validation_data=(X_valid, Y_valid),)
 			predictions_valid = model.predict(X_valid, batch_size=batch_size, verbose=1)
 			score = log_loss(Y_valid, predictions_valid)
 			print("Individual " + str(individual.name) + " fitness score: " + str(score))
@@ -199,5 +203,12 @@ if __name__ == '__main__':
 
 	X_train, Y_train, X_valid, Y_valid = load_cifar10_data(img_rows, img_cols)
 
-	pop.train_evaluate_population(X_train,Y_train,batch_size,nb_epoch,X_valid,Y_valid)
+	print(X_train.shape)
+
+	#X_train = preprocessing.normalize(X_train,axis=0)
+	#X_valid = preprocessing.scale(X_valid)
+
+	print(X_train[0])
+
+	#pop.train_evaluate_population(X_train,Y_train,batch_size,nb_epoch,X_valid,Y_valid)
 
