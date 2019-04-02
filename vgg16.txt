@@ -1,4 +1,4 @@
-# lenet model for testing
+# vgg16 model for testing
 	#stage 1
 	conv1_1 = {'name':'conv1_1','type':'Convolution2D','border_mode':'same','nb_filter':64,'nb_row':224,'nb_col':224,'input_shape':(img_rows,img_cols,channel)}
 	activation1_1 = {'name':'activation1_1','type':'Activation','activation':'relu'}

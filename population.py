@@ -269,7 +269,7 @@ if __name__ == '__main__':
 	max3 = {'name':'max3','type':'MaxPooling2D','pool_size':(2,2),'strides':(2,2)}
 
 	#stage 4
-	conv4_1 = {'name':'conv4_1','type':'Convolution2D','border_mode':'same','nb_filter'512:,'nb_row': 28,'nb_col':28}
+	conv4_1 = {'name':'conv4_1','type':'Convolution2D','border_mode':'same','nb_filter':512,'nb_row': 28,'nb_col':28}
 	activation4_1 = {'name':'activation4_1','type':'Activation','activation':'relu'}
 
 	conv4_2 = {'name':'conv4_2','type':'Convolution2D','border_mode':'same','nb_filter':512,'nb_row':28,'nb_col':28}
@@ -280,7 +280,7 @@ if __name__ == '__main__':
 	max4 = {'name':'max4','type':'MaxPooling2D','pool_size':(2,2),'strides':(2,2)}
 
 	#stage 5
-	conv5_1 = {'name':'conv5_1','type':'Convolution2D','border_mode':'same','nb_filter'512:,'nb_row': 14,'nb_col':14}
+	conv5_1 = {'name':'conv5_1','type':'Convolution2D','border_mode':'same','nb_filter':512,'nb_row': 14,'nb_col':14}
 	activation5_1 = {'name':'activation5_1','type':'Activation','activation':'relu'}
 
 	conv5_2 = {'name':'conv5_2','type':'Convolution2D','border_mode':'same','nb_filter':512,'nb_row':14,'nb_col':14}
