@@ -1,0 +1,61 @@
+# lenet model for testing
+	#stage 1
+	conv1_1 = {'name':'conv1_1','type':'Convolution2D','border_mode':'same','nb_filter':64,'nb_row':224,'nb_col':224,'input_shape':(img_rows,img_cols,channel)}
+	activation1_1 = {'name':'activation1_1','type':'Activation','activation':'relu'}
+
+	conv1_2 = {'name':'conv1_2','type':'Convolution2D','border_mode':'same','nb_filter':64,'nb_row':224,'nb_col':224}
+	activation1_2 = {'name':'activation1_2','type':'Activation','activation':'relu'}
+	max1 = {'name':'max1','type':'MaxPooling2D','pool_size':(2,2),'strides':(2,2)}
+
+	#stage 2
+	conv2_1 = {'name':'conv2_1','type':'Convolution2D','border_mode':'same','nb_filter':112,'nb_row': 128,'nb_col': 128}
+	activation2_1 = {'name':'activation2_1','type':'Activation','activation':'relu'}
+
+	conv2_2 = {'name':'conv2_2','type':'Convolution2D','border_mode':'same','nb_filter':112,'nb_row':128,'nb_col':128}
+	activation2_2 = {'name':'activation2_2','type':'Activation','activation':'relu'}
+	max2 = {'name':'max2','type':'MaxPooling2D','pool_size':(2,2),'strides':(2,2)}
+
+	#stage 3
+	conv3_1 = {'name':'conv3_1','type':'Convolution2D','border_mode':'same','nb_filter':256,'nb_row': 56,'nb_col': 56}
+	activation3_1 = {'name':'activation3_1','type':'Activation','activation':'relu'}
+
+	conv3_2 = {'name':'conv3_2','type':'Convolution2D','border_mode':'same','nb_filter':256,'nb_row':56,'nb_col':56}
+	activation3_2 = {'name':'activation3_2','type':'Activation','activation':'relu'}
+
+	conv3_3 = {'name':'conv3_3','type':'Convolution2D','border_mode':'same','nb_filter':256,'nb_row':56,'nb_col':56}
+	activation3_3 = {'name':'activation3_3','type':'Activation','activation':'relu'}
+	max3 = {'name':'max3','type':'MaxPooling2D','pool_size':(2,2),'strides':(2,2)}
+
+	#stage 4
+	conv4_1 = {'name':'conv4_1','type':'Convolution2D','border_mode':'same','nb_filter'512:,'nb_row': 28,'nb_col':28}
+	activation4_1 = {'name':'activation4_1','type':'Activation','activation':'relu'}
+
+	conv4_2 = {'name':'conv4_2','type':'Convolution2D','border_mode':'same','nb_filter':512,'nb_row':28,'nb_col':28}
+	activation4_2 = {'name':'activation4_2','type':'Activation','activation':'relu'}
+
+	conv4_3 = {'name':'conv4_3','type':'Convolution2D','border_mode':'same','nb_filter':512,'nb_row':28,'nb_col':28}
+	activation4_3 = {'name':'activation4_3','type':'Activation','activation':'relu'}
+	max4 = {'name':'max4','type':'MaxPooling2D','pool_size':(2,2),'strides':(2,2)}
+
+	#stage 5
+	conv5_1 = {'name':'conv5_1','type':'Convolution2D','border_mode':'same','nb_filter'512:,'nb_row': 14,'nb_col':14}
+	activation5_1 = {'name':'activation5_1','type':'Activation','activation':'relu'}
+
+	conv5_2 = {'name':'conv5_2','type':'Convolution2D','border_mode':'same','nb_filter':512,'nb_row':14,'nb_col':14}
+	activation5_2 = {'name':'activation5_2','type':'Activation','activation':'relu'}
+
+	conv5_3 = {'name':'conv5_3','type':'Convolution2D','border_mode':'same','nb_filter':512,'nb_row':14,'nb_col':14}
+	activation5_3 = {'name':'activation5_3','type':'Activation','activation':'relu'}
+	max5 = {'name':'max5','type':'MaxPooling2D','pool_size':(2,2),'strides':(2,2)}
+
+	#flatten then fully connected (dense) layers
+	flatten1 = {'name':'flatten1','type':'Flatten'}
+	dense1 = {'name':'dense1','type':'Dense','output_dim':4096}
+	activation_dense1 = {'name':'activation_dense1','type':'Activation','activation':'relu'}
+
+	dense2 = {'name':'dense2','type':'Dense','output_dim':4096}
+	activation_dense2 = {'name':'activation_dense2','type':'Activation','activation':'relu'}
+
+
+	dense3 = {'name':'dense3','type':'Dense','output_dim':num_classes}
+	activation_dense3 = {'name':'output','type':'Activation','activation':'softmax'}
