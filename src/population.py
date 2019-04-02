@@ -17,6 +17,7 @@ from scipy.misc import toimage
 from scipy.interpolate import make_interp_spline, BSpline
 
 from load_cifar_10 import load_cifar10_data, load_cifar100_data
+from helpers import plot_history, augment_data
 
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
@@ -166,42 +167,27 @@ class Population:
 			individual.print_individual()
 
 	def train_evaluate_population(self,X_train,Y_train,batch_size,nb_epoch,X_valid,Y_valid,augment_ratio=2):
-		# AUGMENT DATA
-		datagen = ImageDataGenerator(zca_whitening=True)
-		datagen.fit(X_train)
-		original_length = np.size(X_train,axis=0)
-		batches = 0
-		for X_batch, y_batch in datagen.flow(X_train, Y_train, batch_size=original_length):
-			X_train = np.concatenate((X_train,X_batch),axis=0)
-			Y_train = np.concatenate((Y_train,y_batch),axis=0)
-			print(X_train.shape)
-			batches = batches + 1
-			if batches >= augment_ratio:
-				break
 
+		X_train, Y_train = augment_data(X_train,Y_train,batch_size,augment_ratio)
 
 		self.population.append(self.model)
-		model = self.model.build_model(learn_rate=0.003)
-		history = model.fit(X_train, Y_train, batch_size=batch_size, epochs=nb_epoch, shuffle=True, verbose=1,validation_split=0.2)
-		predictions_valid = model.predict(X_valid, batch_size=batch_size, verbose=1)
-		self.histories.append(history)
 
-		
 		for individual in self.population:
-			model = individual.build_model(learn_rate=0.003)
+			model = individual.build_model(learn_rate=0.001)
 			history = model.fit(X_train, Y_train, batch_size=batch_size, epochs=nb_epoch, shuffle=True, verbose=1,validation_split=0.2)
 			predictions_valid = model.predict(X_valid, batch_size=batch_size, verbose=1)
 			score = log_loss(Y_valid, predictions_valid)
 			individual.set_fitness(score)
+			print("SCORE: " + str(score))
 			self.histories.append(history)
 
 			# save model
-			model_json = model.to_json()
-			path_name = cwd+("/models/model_"+str(individual.name)+" " +str(individual.fitness))
-			with open(path_name+".json","w") as json_file:
-				json_file.write(model_json)
+			#model_json = model.to_json()
+			#path_name = cwd+("/models/model_"+str(individual.name)+" " +str(individual.fitness))
+			#with open(path_name+".json","w") as json_file:
+			#	json_file.write(model_json)
 			# save weights
-			model.save_weights(path_name+".h5")
+			#model.save_weights(path_name+".h5")
 		
 		# sort the results
 		sorted_individuals = sorted(self.population, key=lambda x: x.fitness)
@@ -213,32 +199,13 @@ class Population:
 		plot_history([(name,history) for name, history in zip([i.name for i in sorted_individuals[:k]],self.histories[:k])],nb_epoch)
 
 
-
-
-def plot_history(histories,nb_epoch, key='binary_crossentropy'):
-	plt.figure(figsize=(16,10))
-	cmap = plt.get_cmap('jet_r')
-	i = 1
-	for name, history in histories:
-		color = cmap(float(i)/len(histories))
-		i = i+1
-		plt.plot(history.history['acc'],linestyle='-',c=color,label=str(name+' acc'))
-		plt.plot(history.history['val_acc'],linestyle='--',c=color,label=str(name+' val_acc'))
-
-	plt.xlabel('Epochs')
-	plt.ylabel(key.replace('_',' ').title())
-	plt.legend()
-	plt.xlim([0,max(history.epoch)])
-	plt.show()
-
-
 if __name__ == '__main__':
 	from matplotlib import pyplot as plt
 
 
 	img_rows, img_cols = 32, 32 # Resolution of inputs
 	channel = 3# rgb
-	num_classes = 100
+	num_classes = 10
 
 	# lenet model for testing
 	conv1 = {'name':'conv1','type':'Convolution2D','border_mode':'same','nb_filter':20,'nb_row':5,'nb_col':5,'input_shape':(img_rows,img_cols,channel)}
@@ -258,12 +225,12 @@ if __name__ == '__main__':
 
 	# create population
 	p = [conv1,activation1,max1,conv2,activation2,max2, flatten1, dense1, activation3, dense2, activation4]
-	pop = Population(p,size=30)
+	pop = Population(p,size=5)
 
 	# Example to fine-tune on samples from Cifar10
-	batch_size = 64 
-	nb_epoch = 35
-	X_train, Y_train, X_valid, Y_valid = load_cifar100_data(img_rows, img_cols, nb_train_samples=300,nb_valid_samples=500)
+	batch_size = 128
+	nb_epoch = 12
+	X_train, Y_train, X_valid, Y_valid = load_cifar10_data(img_rows, img_cols, nb_train_samples=2000,nb_valid_samples=1000)
 	X_train,X_valid = X_train.astype('float32'), X_valid.astype('float32')
 	# run train and evalute
-	pop.train_evaluate_population(X_train,Y_train,batch_size,nb_epoch,X_valid,Y_valid,augment_ratio=4)
+	pop.train_evaluate_population(X_train,Y_train,batch_size,nb_epoch,X_valid,Y_valid,augment_ratio=16)
