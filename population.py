@@ -300,10 +300,16 @@ if __name__ == '__main__':
 
 
 	dense3 = {'name':'dense3','type':'Dense','output_dim':num_classes}
-	activation_dense3 = {'name':'output','type':'Activation','activation':'softmax'}
+	activation_dense3 = {'name':'activation_dense3','type':'Activation','activation':'softmax'}
+	
 	# create population
-	p = [conv1,activation1,max1,conv2,activation2,max2, flatten1, dense1, activation3, dense2, activation4]
-	pop = Population(p,size=30)
+	p = [conv1_1, activation1_1, conv1_2, activation1_2, max1,
+	conv2_1, activation2_1, conv2_2, activation2_2, max2,
+	conv3_1, activation3_1, conv3_2, activation3_2, conv3_3, activation3_3, max3,
+	conv4_1, activation4_1, conv4_2, activation4_2, conv4_3, activation4_3, max4,
+	conv5_1, activation5_1, conv5_2, activation5_2, conv5_3, activation5_3, max5,
+	flatten1, dense1, activation_dense1, dense2, activation_dense2, dense3, activation_dense3]
+	pop = Population(p,size=10)
 
 	# Example to fine-tune on samples from Cifar10
 	batch_size = 64 
