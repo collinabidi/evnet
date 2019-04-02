@@ -9,7 +9,7 @@ def augment_data(X,y,batch_size,augment_size):
 	datagen.fit(X)
 	original_length = np.size(X,axis=0)
 	batches = 0
-	for X_batch, y_batch in datagen.flow(X, y, batch_size=original_length):
+	for X_batch, y_batch in datagen.flow(X, y, batch_size=batch_size):
 		X = np.concatenate((X,X_batch),axis=0)
 		y = np.concatenate((y,y_batch),axis=0)
 		batches = batches + 1

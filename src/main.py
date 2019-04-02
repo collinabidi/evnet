@@ -1,7 +1,9 @@
 from matplotlib import pyplot as plt
 from population import Population
+from helpers import augment_data
 from load_cifar_10 import load_cifar10_data, load_cifar100_data
 import numpy as np
+import dask.array as da
 
 img_rows, img_cols = 32, 32 # Resolution of inputs
 channel = 3 # rgb
@@ -79,7 +81,17 @@ pop = Population(p,size=5)
 # Example to fine-tune on samples from Cifar10
 batch_size = 64
 nb_epoch = 12
-X_train, Y_train, X_valid, Y_valid = load_cifar10_data(img_rows, img_cols, nb_train_samples=500,nb_valid_samples=100)
+train_num = 1000
+valid_num = 1000
+X_train, Y_train, X_valid, Y_valid = load_cifar10_data(img_rows, img_cols, nb_train_samples=train_num,nb_valid_samples=valid_num)
 X_train,X_valid = X_train.astype('float32'), X_valid.astype('float32')
+
+augment_ratio = 10
+X_train, Y_train = augment_data(X_train,Y_train,batch_size,augment_ratio)
+
+X_train = da.from_array(np.asarray(X_train), chunks=(int(train_num/augment_ratio))*augment_ratio)
+Y_train = da.from_array(np.asarray(Y_train), chunks=(int(train_num/augment_ratio))*augment_ratio)
+X_valid = da.from_array(np.asarray(X_valid), chunks=(int(valid_num/augment_ratio))*augment_ratio)
+Y_valid = da.from_array(np.asarray(Y_valid), chunks=(int(valid_num/augment_ratio))*augment_ratio)
 # run train and evalute
-pop.train_evaluate_population(X_train,Y_train,batch_size,nb_epoch,X_valid,Y_valid,augment_ratio=3)
+pop.train_evaluate_population(X_train,Y_train,batch_size,nb_epoch,X_valid,Y_valid)
