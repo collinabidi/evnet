@@ -3,28 +3,38 @@ import random
 import copy
 import math
 import numpy as np
+import os
+import sys
+import tensorflow as tf
 
+from get_size import get_size
 from keras.models import Sequential
 from keras.utils import plot_model
 from keras.layers.convolutional import Conv2D,MaxPooling2D
 from keras.layers.core import Activation,Flatten,Dense
 from keras.optimizers import SGD, Adam
+from keras import backend as K
 from keras.preprocessing.image import ImageDataGenerator
 from keras.models import model_from_json
-
 from sklearn.metrics import log_loss
 from scipy.misc import toimage
 from scipy.interpolate import make_interp_spline, BSpline
-
 from load_cifar_10 import load_cifar10_data, load_cifar100_data
-from helpers import plot_history
 
-import os
+from helpers import plot_history, reset_keras
+
+# get current working directory and set random seed
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 cwd = os.getcwd()
-
 seed = 7
 np.random.seed(seed)
+
+# set gpu memory usage options
+config = tf.ConfigProto()
+config.gpu_options.allow_growth=True
+config.gpu_options.per_process_gpu_memory_fraction=0.5
+K.tensorflow_backend.set_session(tf.Session(config=config))
+
 
 # population class defines the individual/gene and linked list that make up a representation of
 # a population of individuals that are made up of layers
@@ -136,7 +146,7 @@ class Individual:
 
 		# Learning rate is changed to 0.001
 		sgd = SGD(lr=learn_rate, decay=1e-6, momentum=0.9, nesterov=True)
-		adam = Adam(lr=learn_rate,beta_1=0.9,beta_2=0.999,epsilon=1e-08)
+		#adam = Adam(lr=learn_rate,beta_1=0.9,beta_2=0.999,epsilon=1e-08)
 		model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
 
 		return model
@@ -166,25 +176,29 @@ class Population:
 		for individual in self.population:
 			individual.print_individual()
 
+
 	def train_evaluate_population(self,X_train,Y_train,batch_size,nb_epoch,X_valid,Y_valid):
 		self.population.append(self.model)
 
 		for individual in self.population:
-			model = individual.build_model(learn_rate=0.001)
-			history = model.fit(X_train, Y_train, batch_size=batch_size, epochs=nb_epoch, shuffle=True, verbose=1,validation_split=0.2)
-			predictions_valid = model.predict(X_valid, batch_size=batch_size, verbose=1)
-			score = log_loss(Y_valid, predictions_valid)
-			individual.set_fitness(score)
-			print("SCORE: " + str(score))
-			self.histories.append(history)
+			# replica 0
+			with tf.device('/gpu:0'):
+				K.clear_session()
+				model = individual.build_model(learn_rate=0.001)
+				history = model.fit(X_train, Y_train, batch_size=batch_size, epochs=nb_epoch, shuffle=False, verbose=1,validation_split=0.2)
+				predictions_valid = model.predict(X_valid, batch_size=batch_size, verbose=1)
+				score = log_loss(Y_valid, predictions_valid)
+				individual.set_fitness(score)
+				print("SCORE: " + str(score))
+				self.histories.append(history)
 
-			# save model
-			#model_json = model.to_json()
-			#path_name = cwd+("/models/model_"+str(individual.name)+" " +str(individual.fitness))
-			#with open(path_name+".json","w") as json_file:
-			#	json_file.write(model_json)
-			# save weights
-			#model.save_weights(path_name+".h5")
+				# save model
+				#model_json = model.to_json()
+				#path_name = cwd+("/models/model_"+str(individual.name)+" " +str(individual.fitness))
+				#with open(path_name+".json","w") as json_file:
+				#	json_file.write(model_json)
+				# save weights
+				#model.save_weights(path_name+".h5")
 		
 		# sort the results
 		sorted_individuals = sorted(self.population, key=lambda x: x.fitness)
@@ -196,38 +210,11 @@ class Population:
 		plot_history([(name,history) for name, history in zip([i.name for i in sorted_individuals[:k]],self.histories[:k])],nb_epoch)
 
 
-if __name__ == '__main__':
-	from matplotlib import pyplot as plt
 
 
-	img_rows, img_cols = 32, 32 # Resolution of inputs
-	channel = 3# rgb
-	num_classes = 10
 
-	# lenet model for testing
-	conv1 = {'name':'conv1','type':'Convolution2D','border_mode':'same','nb_filter':20,'nb_row':5,'nb_col':5,'input_shape':(img_rows,img_cols,channel)}
-	activation1 = {'name':'activation1','type':'Activation','activation':'relu'}
-	max1 = {'name':'max1','type':'MaxPooling2D','pool_size':(2,2),'strides':(2,2)}
 
-	conv2 = {'name':'conv2','type':'Convolution2D','border_mode':'same','nb_filter':50,'nb_row':5,'nb_col':5}
-	activation2 = {'name':'activation2','type':'Activation','activation':'relu'}
-	max2 = {'name':'max2','type':'MaxPooling2D','pool_size':(2,2),'strides':(2,2)}
 
-	flatten1 = {'name':'flatten1','type':'Flatten'}
-	dense1 = {'name':'dense2','type':'Dense','output_dim':500}
-	activation3 = {'name':'activation3','type':'Activation','activation':'relu'}
-
-	dense2 = {'name':'dense2','type':'Dense','output_dim':num_classes}
-	activation4 = {'name':'output','type':'Activation','activation':'softmax'}
-
-	# create population
-	p = [conv1,activation1,max1,conv2,activation2,max2, flatten1, dense1, activation3, dense2, activation4]
-	pop = Population(p,size=5)
-
-	# Example to fine-tune on samples from Cifar10
-	batch_size = 128
-	nb_epoch = 12
-	X_train, Y_train, X_valid, Y_valid = load_cifar10_data(img_rows, img_cols, nb_train_samples=2000,nb_valid_samples=1000)
-	X_train,X_valid = X_train.astype('float32'), X_valid.astype('float32')
-	# run train and evalute
-	pop.train_evaluate_population(X_train,Y_train,batch_size,nb_epoch,X_valid,Y_valid,augment_ratio=16)
+if __name__ == "__main__":
+	from tensorflow.python.client import device_lib 
+	print(device_lib.list_local_devices())
