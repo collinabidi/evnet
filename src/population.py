@@ -17,7 +17,7 @@ from scipy.misc import toimage
 from scipy.interpolate import make_interp_spline, BSpline
 
 from load_cifar_10 import load_cifar10_data, load_cifar100_data
-from helpers import plot_history, augment_data
+from helpers import plot_history
 
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
@@ -166,10 +166,7 @@ class Population:
 		for individual in self.population:
 			individual.print_individual()
 
-	def train_evaluate_population(self,X_train,Y_train,batch_size,nb_epoch,X_valid,Y_valid,augment_ratio=2):
-
-		X_train, Y_train = augment_data(X_train,Y_train,batch_size,augment_ratio)
-
+	def train_evaluate_population(self,X_train,Y_train,batch_size,nb_epoch,X_valid,Y_valid):
 		self.population.append(self.model)
 
 		for individual in self.population:

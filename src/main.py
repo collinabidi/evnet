@@ -86,12 +86,13 @@ valid_num = 1000
 X_train, Y_train, X_valid, Y_valid = load_cifar10_data(img_rows, img_cols, nb_train_samples=train_num,nb_valid_samples=valid_num)
 X_train,X_valid = X_train.astype('float32'), X_valid.astype('float32')
 
-augment_ratio = 10
+augment_ratio = 2
 X_train, Y_train = augment_data(X_train,Y_train,batch_size,augment_ratio)
-
+"""
 X_train = da.from_array(np.asarray(X_train), chunks=(int(train_num/augment_ratio))*augment_ratio)
 Y_train = da.from_array(np.asarray(Y_train), chunks=(int(train_num/augment_ratio))*augment_ratio)
 X_valid = da.from_array(np.asarray(X_valid), chunks=(int(valid_num/augment_ratio))*augment_ratio)
 Y_valid = da.from_array(np.asarray(Y_valid), chunks=(int(valid_num/augment_ratio))*augment_ratio)
+"""
 # run train and evalute
 pop.train_evaluate_population(X_train,Y_train,batch_size,nb_epoch,X_valid,Y_valid)

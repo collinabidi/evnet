@@ -58,7 +58,7 @@ def load_cifar100_data(img_rows, img_cols, nb_train_samples=1000,nb_valid_sample
 if __name__ == "__main__":
     from matplotlib import pyplot as plt
     img_cols,img_rows = 32,32
-    X_train, Y_train, X_valid, Y_valid = load_cifar10_data(img_rows, img_cols, nb_train_samples=100,nb_valid_samples=500)
+    X_train, Y_train, X_valid, Y_valid = load_cifar10_data(img_rows, img_cols, nb_train_samples=1000,nb_valid_samples=500)
     Y_train,Y_valid = np.array([np.argmax(i) for i in Y_train]),np.array([np.argmax(i) for i in Y_valid])
     print(Y_train[:10])
     fig = plt.figure(figsize=(32,32))
