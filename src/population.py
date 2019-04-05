@@ -4,7 +4,7 @@ import copy
 import math
 import numpy as np
 import os
-import sys
+import time
 import tensorflow as tf
 
 from get_size import get_size
@@ -19,9 +19,9 @@ from keras.models import model_from_json
 from sklearn.metrics import log_loss
 from scipy.misc import toimage
 from scipy.interpolate import make_interp_spline, BSpline
-from load_cifar_10 import load_cifar10_data, load_cifar100_data
 
-from helpers import plot_history, reset_keras
+from load_cifar_10 import load_cifar10_data, load_cifar100_data
+from helpers import plot_history
 
 # get current working directory and set random seed
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
@@ -64,11 +64,14 @@ class Layer:
 	def mutate_activation(self):
 		if 'activation' in self.__dict__ and self.name is not 'output':
 			self.activation = random.choice(['tanh','relu','sigmoid'])
+			print("\tmutated activation of %s to %s" % (str(self.name),str(self.activation)))
+
 
 	def mutate_kernel(self):
 		if 'nb_row' in self.__dict__ and self.name is not 'output':
 			rand_factor = random.choice([0.5,1.0,2.0])
-			self.nb_row = (int(math.floor(self.nb_row* rand_factor)),int(math.floor(self.nb_row * rand_factor)))
+			self.nb_row = int(math.floor(self.nb_row* rand_factor))
+			print("\tmutated nb_row of %s to %s" % (str(self.name),str(self.nb_row)))
 
 class Individual:
 	"""
@@ -77,9 +80,8 @@ class Individual:
 	keras model from the Individual
 	"""
 
-	# encoded version of the layers in case we want to use it for stuff idk
-	gene = ""
 	layers = []
+	train_time = 0
 
 	def __init__(self,gene,name,fitness=-1):
 		self.name = name
@@ -107,7 +109,7 @@ class Individual:
 		self.fitness = score
 
 	# todo returns a new individual that's based on the original one but mutated
-	def mutate(self, name="default name", prob=0.1):
+	def mutate(self, name="default name", prob=0.2):
 		new_individual = copy.deepcopy(self.layers)
 		for layer in new_individual:
 			r = random.uniform(0.0,1.0)
@@ -115,6 +117,7 @@ class Individual:
 				layer.mutate_activation()
 			r = random.uniform(0.0,1.0)
 			if r < prob and layer.name is not 'output':
+				print("KERNEL MUTATION OF %s" % (str(name)))
 				layer.mutate_kernel()
 		return Individual(new_individual,name)
 
@@ -127,24 +130,20 @@ class Individual:
 		model = Sequential()
 		for layer in self.layers:
 			print(layer.__dict__)
-			if layer.type is 'Convolution2D' and 'input_shape' in layer.__dict__:
-				model.add(Conv2D(layer.nb_filter,layer.nb_row,padding=layer.border_mode,input_shape=layer.input_shape))
-			elif layer.type is 'Convolution2D' and 'input_shape' not in layer.__dict__:
-				model.add(Conv2D(layer.nb_filter,layer.nb_row,padding=layer.border_mode))
+			if layer.type is 'Convolution2D':
+				if 'input_shape' in layer.__dict__:
+					model.add(Conv2D(layer.nb_filter,layer.nb_row,activation=layer.activation,padding=layer.border_mode,input_shape=layer.input_shape))
+				else:
+					model.add(Conv2D(layer.nb_filter,layer.nb_row,activation=layer.activation,padding=layer.border_mode))
 			elif layer.type is 'MaxPooling2D':
 				model.add(MaxPooling2D(pool_size=layer.pool_size,strides=layer.strides,data_format="channels_first"))
-			elif layer.type is 'Activation':
-				model.add(Activation(layer.activation))
 			elif layer.type is 'Dense':
-				model.add(Dense(layer.output_dim))
+				model.add(Dense(layer.output_dim,activation=layer.activation))
 			elif layer.type is 'Flatten':
 				model.add(Flatten())
 			elif layer.type is 'Dropout':
 				model.add(Dropout(layer.p))
-			elif layer.type is 'ZeroPadding2D':
-				model.add(ZeroPadding2D(strides=layer.stride))
 
-		# Learning rate is changed to 0.001
 		sgd = SGD(lr=learn_rate, decay=1e-6, momentum=0.9, nesterov=True)
 		#adam = Adam(lr=learn_rate,beta_1=0.9,beta_2=0.999,epsilon=1e-08)
 		model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
@@ -153,22 +152,22 @@ class Individual:
 
 
 class Population:
-	"""
-	This class defines an unsorted population of Individuals for use in genetic algorithms
-	"""
+
 	population = []
 	histories = []
+	gen_id = 0
+	generation_histories = {}
 
-	def __init__(self,model,size=10,crossover=0.8,elitism=0.1,mutation=0.5):
+	def __init__(self,model,size=10,crossover=0.8,k_best=10,mutation=0.2):
 		print("initializing population")
 		self.model = Individual(model,"Grandparent")
 		self.size = size
 		self.crossover = crossover
-		self.elitism = elitism
+		self.k_best = k_best
 		self.mutation = mutation
 
 		for i in range(size):
-			self.population.append(self.model.mutate(prob=mutation,name=("#"+str(i))))
+			self.population.append(self.model.mutate(prob=mutation,name=("# "+str(self.gen_id) + "_" +str(i))))
 		
 		print("done initializing population")
 
@@ -178,18 +177,26 @@ class Population:
 
 
 	def train_evaluate_population(self,X_train,Y_train,batch_size,nb_epoch,X_valid,Y_valid):
+		print("\n**************** TRAINING ****************\n")
 		self.population.append(self.model)
-
 		for individual in self.population:
-			# replica 0
 			with tf.device('/gpu:0'):
-				K.clear_session()
+				K.clear_session() # keep backend clean
+				
+				# build, fit, score model
 				model = individual.build_model(learn_rate=0.001)
+				start_time = time.time()
 				history = model.fit(X_train, Y_train, batch_size=batch_size, epochs=nb_epoch, shuffle=False, verbose=1,validation_split=0.2)
+				end_time = time.time()
+				individual.start_time, individual.end_time, individual.train_time = start_time, end_time, end_time-start_time 
 				predictions_valid = model.predict(X_valid, batch_size=batch_size, verbose=1)
-				score = log_loss(Y_valid, predictions_valid)
-				individual.set_fitness(score)
-				print("SCORE: " + str(score))
+				acc = history.history['acc'][-1]
+				val_acc = history.history['val_acc'][-1]
+				individual.set_fitness(acc)
+
+				print("Final Accuracy: " + str(acc))
+				print("Final Val Accuracy: " + str(val_acc))
+
 				self.histories.append(history)
 
 				# save model
@@ -201,20 +208,28 @@ class Population:
 				#model.save_weights(path_name+".h5")
 		
 		# sort the results
-		sorted_individuals = sorted(self.population, key=lambda x: x.fitness)
-		sorted_results = {i.name:i.fitness for i in sorted_individuals}
-		print(sorted_results)
+		self.population.sort(key=lambda x: x.fitness)
 
-		# plot top k results
-		k = 5
-		plot_history([(name,history) for name, history in zip([i.name for i in sorted_individuals[:k]],self.histories[:k])],nb_epoch)
+		# plot top k results and save to generation histories
+		h = [(name,history) for name, history in zip([i.name for i in self.population[:self.k_best]],self.histories[:self.k_best])]
+		self.generation_histories[self.gen_id] = h
 
-
+		print("\n******************************************\n")
 
 
+	# turns population into the next generation
+	def evolve(self):
+		print("\n**************** EVOLVING ****************\n")
+		new_pop = []
+		self.gen_id = self.gen_id + 1
+		self.population.sort(key=lambda x: x.fitness)
+		# add winners
+		for i in self.population[:self.k_best]:
+			new_pop.append(i)
+		# generate children based on winners until we run out of space in the population
+		for i in range(self.k_best,self.size):
+			parent = self.population[i % self.k_best]
+			new_pop.append(parent.mutate(prob=self.mutation,name=("# " + str(self.gen_id) + "_" + str(i))))
 
-
-
-if __name__ == "__main__":
-	from tensorflow.python.client import device_lib 
-	print(device_lib.list_local_devices())
+		self.population = new_pop
+		print("\n******************************************\n")

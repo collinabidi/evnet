@@ -1,11 +1,23 @@
 #! python3
 # helper functions
-from keras.preprocessing.image import ImageDataGenerator
-from matplotlib import pyplot as plt
-from keras.backend.tensorflow_backend import set_session,clear_session,get_session
 import tensorflow as tf
 import numpy as np
 import gc
+import time
+import keras
+
+from keras.preprocessing.image import ImageDataGenerator
+from matplotlib import pyplot as plt
+from keras.backend.tensorflow_backend import set_session,clear_session,get_session
+
+# from https://stackoverflow.com/questions/43178668/record-the-computation-time-for-each-epoch-in-keras-during-model-fit
+class TimeHistory(keras.callbacks.Callback):
+	def on_train_begin(self,logs={}):
+		self.times = []
+	def on_epoch_begin(self,batch,logs={}):
+		self.epoch_time_start = time.time()
+	def on_epoch_end(self,batch,logs={}):
+		self.times.append(time.time()-self.epoch_time_start)
 
 
 def augment_data(X,y,batch_size,augment_size):
@@ -37,21 +49,3 @@ def plot_history(histories,nb_epoch, key='binary_crossentropy'):
 	plt.legend()
 	plt.xlim([0,max(history.epoch)])
 	plt.show()
-
-def reset_keras():
-	sess = get_session()
-	clear_session()
-	sess.close()
-	sess = get_session()
-
-	try:
-		del classifier
-	except:
-		pass
-
-	print(gc.collect())
-
-	config = tf.ConfigProto()
-	config.gpu_options.per_process_gpu_memory_fraction = 0.90
-	config.gpu_options.visible_device_list="0"
-	set_session(tf.Session(config=config))
