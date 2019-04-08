@@ -7,21 +7,18 @@ import os
 import time
 import tensorflow as tf
 
-from get_size import get_size
 from keras.models import Sequential
 from keras.utils import plot_model
 from keras.layers.convolutional import Conv2D,MaxPooling2D
-from keras.layers.core import Activation,Flatten,Dense
+from keras.layers.core import Activation,Flatten,Dense,Dropout
 from keras.optimizers import SGD, Adam
 from keras import backend as K
-from keras.preprocessing.image import ImageDataGenerator
 from keras.models import model_from_json
-from sklearn.metrics import log_loss
 from scipy.misc import toimage
-from scipy.interpolate import make_interp_spline, BSpline
+from sklearn.model_selection import train_test_split
+from keras.preprocessing.image import ImageDataGenerator
 
-from load_cifar_10 import load_cifar10_data, load_cifar100_data
-from helpers import plot_history
+from helpers import plot_history, image_generator
 
 # get current working directory and set random seed
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
@@ -63,7 +60,7 @@ class Layer:
 	
 	def mutate_activation(self):
 		if 'activation' in self.__dict__ and self.name is not 'output':
-			self.activation = random.choice(['tanh','relu','sigmoid'])
+			self.activation = random.choice(['tanh','relu'])
 			print("\tmutated activation of %s to %s" % (str(self.name),str(self.activation)))
 
 
@@ -141,8 +138,6 @@ class Individual:
 				model.add(Dense(layer.output_dim,activation=layer.activation))
 			elif layer.type is 'Flatten':
 				model.add(Flatten())
-			elif layer.type is 'Dropout':
-				model.add(Dropout(layer.p))
 
 		sgd = SGD(lr=learn_rate, decay=1e-6, momentum=0.9, nesterov=True)
 		#adam = Adam(lr=learn_rate,beta_1=0.9,beta_2=0.999,epsilon=1e-08)
@@ -166,7 +161,9 @@ class Population:
 		self.k_best = k_best
 		self.mutation = mutation
 
-		for i in range(size):
+		self.population.append(self.model)
+
+		for i in range(1,size):
 			self.population.append(self.model.mutate(prob=mutation,name=("# "+str(self.gen_id) + "_" +str(i))))
 		
 		print("done initializing population")
@@ -176,26 +173,43 @@ class Population:
 			individual.print_individual()
 
 
-	def train_evaluate_population(self,X_train,Y_train,batch_size,nb_epoch,X_valid,Y_valid):
+	def train_evaluate_population(self,X,Y,batch_size,nb_epoch,X_test,Y_test):
 		print("\n**************** TRAINING ****************\n")
-		self.population.append(self.model)
+
+		# split training data into training and validation sets
+		X_train,X_valid,Y_train,Y_valid = train_test_split(X,Y,test_size=0.2,random_state=42)
+
+		X_train, X_valid = X_train / 255, X_valid / 255
+
+		print(X_train.shape)
+		print(X_valid.shape)
+		print(Y_train.shape)
+		print(Y_valid.shape)
+
+		# create image data generator
+		aug = ImageDataGenerator(horizontal_flip=True,zoom_range=0.15,fill_mode="nearest",
+			rotation_range=20,width_shift_range=0.2,height_shift_range=0.2)
+
+		trainGen = image_generator(X_train,Y_train,batch_size,mode="train",aug=aug)
+		testGen  = image_generator(X_test,Y_test,batch_size,mode="train",aug=None)
+
 		for individual in self.population:
 			with tf.device('/gpu:0'):
 				K.clear_session() # keep backend clean
-				
+				print("\n\n------------------ " + str(individual.name) + " ------------------")
 				# build, fit, score model
 				model = individual.build_model(learn_rate=0.001)
+
 				start_time = time.time()
-				history = model.fit(X_train, Y_train, batch_size=batch_size, epochs=nb_epoch, shuffle=False, verbose=1,validation_split=0.2)
+				history = model.fit_generator(trainGen, validation_data=testGen,validation_steps=(len(X_test) // batch_size), 
+					steps_per_epoch=(len(X_train) // batch_size), epochs=nb_epoch)
 				end_time = time.time()
 				individual.start_time, individual.end_time, individual.train_time = start_time, end_time, end_time-start_time 
-				predictions_valid = model.predict(X_valid, batch_size=batch_size, verbose=1)
-				acc = history.history['acc'][-1]
-				val_acc = history.history['val_acc'][-1]
-				individual.set_fitness(acc)
 
-				print("Final Accuracy: " + str(acc))
-				print("Final Val Accuracy: " + str(val_acc))
+				predictions_valid = model.predict(X_test, batch_size=batch_size, verbose=1)
+				acc = np.sum(predictions_valid == Y_test) / len(Y_test)
+				individual.set_fitness(acc)
+				print("Final Accuracy: " + str(acc) + "%")
 
 				self.histories.append(history)
 
@@ -220,6 +234,7 @@ class Population:
 	# turns population into the next generation
 	def evolve(self):
 		print("\n**************** EVOLVING ****************\n")
+
 		new_pop = []
 		self.gen_id = self.gen_id + 1
 		self.population.sort(key=lambda x: x.fitness)
@@ -232,4 +247,5 @@ class Population:
 			new_pop.append(parent.mutate(prob=self.mutation,name=("# " + str(self.gen_id) + "_" + str(i))))
 
 		self.population = new_pop
+
 		print("\n******************************************\n")

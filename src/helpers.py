@@ -49,3 +49,12 @@ def plot_history(histories,nb_epoch, key='binary_crossentropy'):
 	plt.legend()
 	plt.xlim([0,max(history.epoch)])
 	plt.show()
+
+
+def image_generator(X,y,bs,mode="train",aug=None):
+	while True:
+		
+		if aug is not None:
+			(X,y) = next(aug.flow(X,y,batch_size=bs))
+
+		yield (X,y)
