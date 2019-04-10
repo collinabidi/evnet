@@ -15,8 +15,8 @@ from keras.layers.core import Activation,Flatten,Dense
 from keras.optimizers import SGD, Adam
 from keras import backend as K
 from keras.preprocessing.image import ImageDataGenerator
+from keras.models import model_from_json
 from sklearn.metrics import log_loss
-from sklearn.model_selection import train_test_split
 from scipy.misc import toimage
 from scipy.interpolate import make_interp_spline, BSpline
 
@@ -165,7 +165,6 @@ class Population:
 		self.crossover = crossover
 		self.k_best = k_best
 		self.mutation = mutation
-		self.population.append(self.model)
 
 		for i in range(size):
 			self.population.append(self.model.mutate(prob=mutation,name=("# "+str(self.gen_id) + "_" +str(i))))
@@ -177,10 +176,9 @@ class Population:
 			individual.print_individual()
 
 
-	def train_evaluate_population(self,X,Y,batch_size,nb_epoch,X_train,Y_train):
+	def train_evaluate_population(self,X_train,Y_train,batch_size,nb_epoch,X_valid,Y_valid):
 		print("\n**************** TRAINING ****************\n")
-
-		X_test, Y_test, X_valid,  Y_valid = train_test_split(X,Y, test_size=0.2,shuffle=True)
+		self.population.append(self.model)
 		for individual in self.population:
 			with tf.device('/gpu:0'):
 				K.clear_session() # keep backend clean
@@ -192,9 +190,12 @@ class Population:
 				end_time = time.time()
 				individual.start_time, individual.end_time, individual.train_time = start_time, end_time, end_time-start_time 
 				predictions_valid = model.predict(X_valid, batch_size=batch_size, verbose=1)
-				
+				acc = history.history['acc'][-1]
+				val_acc = history.history['val_acc'][-1]
 				individual.set_fitness(acc)
+
 				print("Final Accuracy: " + str(acc))
+				print("Final Val Accuracy: " + str(val_acc))
 
 				self.histories.append(history)
 
