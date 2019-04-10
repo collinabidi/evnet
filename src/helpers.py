@@ -21,18 +21,32 @@ class TimeHistory(keras.callbacks.Callback):
 
 
 def augment_data(X,y,batch_size,augment_size):
-	datagen = ImageDataGenerator(zca_whitening=True)
+	print("X shape:\t" + str(X.shape))
+	datagen = ImageDataGenerator(
+		rotation_range=20,
+		width_shift_range=0.2,
+		height_shift_range=0.2,
+		horizontal_flip=True,
+		fill_mode="nearest",
+		featurewise_center=True,
+		featurewise_std_normalization=True
+		)
 	datagen.fit(X)
-	original_length = np.size(X,axis=0)
+	X_new = np.empty(list(((0,) + X.shape[1:])))
+	y_new = np.empty(list(((0,) + y.shape[1:])))
+
 	batches = 0
-	for X_batch, y_batch in datagen.flow(X, y, batch_size=original_length):
-		X = np.concatenate((X,X_batch),axis=0)
-		y = np.concatenate((y,y_batch),axis=0)
-		print(y.shape)
+	for x_batch,y_batch in datagen.flow(X,y,batch_size=batch_size):
+		X_new = np.vstack((X_new,x_batch))
+		y_new = np.vstack((y_new,y_batch))
+		print("x_batch shape:\t" + str(x_batch.shape))	
+		print("x_new shape:\t" + str(X_new.shape))		
+
 		batches = batches + 1
 		if batches >= augment_size:
 			break
-	return (X,y)
+	return (X_new,y_new)
+	
 
 def plot_history(histories,nb_epoch, key='binary_crossentropy'):
 	plt.figure(figsize=(16,10))

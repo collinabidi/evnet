@@ -132,15 +132,17 @@ class Individual:
 			print(layer.__dict__)
 			if layer.type is 'Convolution2D':
 				if 'input_shape' in layer.__dict__:
-					model.add(Conv2D(layer.nb_filter,layer.nb_row,activation=layer.activation,padding=layer.border_mode,input_shape=layer.input_shape))
+					model.add(Conv2D(layer.nb_filter,layer.nb_row,padding=layer.border_mode,input_shape=layer.input_shape))
 				else:
-					model.add(Conv2D(layer.nb_filter,layer.nb_row,activation=layer.activation,padding=layer.border_mode))
+					model.add(Conv2D(layer.nb_filter,layer.nb_row,padding=layer.border_mode))
 			elif layer.type is 'MaxPooling2D':
 				model.add(MaxPooling2D(pool_size=layer.pool_size,strides=layer.strides,data_format="channels_first"))
 			elif layer.type is 'Dense':
-				model.add(Dense(layer.output_dim,activation=layer.activation))
+				model.add(Dense(layer.output_dim))
 			elif layer.type is 'Flatten':
 				model.add(Flatten())
+			elif layer.type is 'Activation':
+				model.add(Activation(layer.activation))
 			elif layer.type is 'Dropout':
 				model.add(Dropout(layer.p))
 
@@ -177,24 +179,23 @@ class Population:
 			individual.print_individual()
 
 
-	def train_evaluate_population(self,X,Y,batch_size,nb_epoch,X_train,Y_train):
+	def train_evaluate_population(self,X,Y,batch_size,nb_epoch,X_test,Y_test):
 		print("\n**************** TRAINING ****************\n")
 
-		X_test, Y_test, X_valid,  Y_valid = train_test_split(X,Y, test_size=0.2,shuffle=True)
+		X_train, X_valid, Y_train,  Y_valid = train_test_split(X,Y, test_size=0.2,shuffle=False)
 		for individual in self.population:
-			with tf.device('/gpu:0'):
-				K.clear_session() # keep backend clean
-				
+			with tf.device('/gpu:0'):				
 				# build, fit, score model
 				model = individual.build_model(learn_rate=0.001)
 				start_time = time.time()
-				history = model.fit(X_train, Y_train, batch_size=batch_size, epochs=nb_epoch, shuffle=False, verbose=1,validation_split=0.2)
+				history = model.fit(X_train, Y_train, batch_size=batch_size, epochs=nb_epoch, shuffle=True, verbose=1,validation_data=(X_valid,Y_valid))
 				end_time = time.time()
 				individual.start_time, individual.end_time, individual.train_time = start_time, end_time, end_time-start_time 
-				predictions_valid = model.predict(X_valid, batch_size=batch_size, verbose=1)
-				
+
+				predictions_valid = model.predict(X_test, batch_size=batch_size, verbose=1)
+				acc = np.sum(predictions_valid == Y_test) / len(Y_test)
 				individual.set_fitness(acc)
-				print("Final Accuracy: " + str(acc))
+				print("Final Accuracy: " + str(acc) + "%")
 
 				self.histories.append(history)
 

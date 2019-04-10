@@ -47,20 +47,30 @@ def load_cifar100_data(img_rows, img_cols, nb_train_samples=15000,nb_test_sample
 
 if __name__ == "__main__":
     from matplotlib import pyplot as plt
+    from helpers import augment_data
+
     img_cols,img_rows = 32,32
-    X_train, Y_train, X_valid, Y_valid = load_cifar10_data(img_rows, img_cols, nb_train_samples=1000,nb_valid_samples=500)
-    Y_train,Y_valid = np.array([np.argmax(i) for i in Y_train]),np.array([np.argmax(i) for i in Y_valid])
-    print(Y_train[:10])
+    X_train, Y_train, X_valid, Y_valid = load_cifar10_data(img_rows, img_cols, nb_train_samples=100,nb_test_samples=100)
+
+    #X_train, Y_train = augment_data(X_train,Y_train,50,2)
+    #Y_train,Y_valid = np.array([np.argmax(i) for i in Y_train]),np.array([np.argmax(i) for i in Y_valid])
+
+    print("X_train shape: " + str(X_train.shape))
+    print("Y_train shape: " + str(Y_train.shape))
+
     fig = plt.figure(figsize=(32,32))
     columns=3
     rows=4
+    f,axarr = plt.subplots(rows,columns)
+    num = 0
+    for i in range(0,rows):
+        for j in range(0,columns):
+            img = X_train[num]
+            label = Y_train[num]
 
-    ax = []
-    rand_list = [random.randint(0,np.size(X_train,0))for _ in range(columns*rows)]
-    for i in range(0,len(rand_list)):
-        img = X_train[rand_list[i]]
-        label = Y_train[rand_list[i]] 
-        ax.append(fig.add_subplot(rows,columns,i+1))
-        ax[-1].set_title(str(label))
-        plt.imshow(img)
+            axarr[i,j].set_title(label)
+            axarr[i,j].imshow(img)
+
+            num = num + 1
+            
     plt.show()
