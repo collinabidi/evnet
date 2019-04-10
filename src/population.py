@@ -176,8 +176,9 @@ class Population:
 			individual.print_individual()
 
 
-	def train_evaluate_population(self,X_train,Y_train,batch_size,nb_epoch,X_valid,Y_valid):
+	def train_evaluate_population(self,X,Y,batch_size,nb_epoch,X_valid,Y_valid):
 		print("\n**************** TRAINING ****************\n")
+
 		self.population.append(self.model)
 		for individual in self.population:
 			with tf.device('/gpu:0'):
@@ -193,9 +194,7 @@ class Population:
 				acc = history.history['acc'][-1]
 				val_acc = history.history['val_acc'][-1]
 				individual.set_fitness(acc)
-
 				print("Final Accuracy: " + str(acc))
-				print("Final Val Accuracy: " + str(val_acc))
 
 				self.histories.append(history)
 
