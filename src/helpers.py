@@ -26,12 +26,12 @@ def augment_data(X,y,batch_size,augment_size):
 	datagen.fit(X)
 	original_length = np.size(X,axis=0)
 	batches = 0
-	for X_batch, y_batch in datagen.flow(X, y, batch_size=batch_size):
+	for X_batch, y_batch in datagen.flow(X, y, batch_size=original_length):
 		X = np.vstack((X,X_batch))
 		y = np.vstack((y,y_batch))
 		print(y.shape)
-		batches = batches + batch_size
-		if batches >= original_length * augment_size:
+		batches = batches + 1
+		if batches >= augment_size:
 			break
 	return (X,y)
 

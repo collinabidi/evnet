@@ -17,10 +17,8 @@ from keras import backend as K
 from keras.preprocessing.image import ImageDataGenerator
 from keras.models import model_from_json
 from sklearn.metrics import log_loss
-from scipy.misc import toimage
-from scipy.interpolate import make_interp_spline, BSpline
+from sklearn.model_selection import train_test_split
 
-from load_cifar_10 import load_cifar10_data, load_cifar100_data
 from helpers import plot_history
 
 # get current working directory and set random seed
@@ -176,25 +174,29 @@ class Population:
 			individual.print_individual()
 
 
-	def train_evaluate_population(self,X,Y,batch_size,nb_epoch,X_valid,Y_valid):
+	def train_evaluate_population(self,X,Y,batch_size,nb_epoch,X_test,Y_test):
 		print("\n**************** TRAINING ****************\n")
-
+		X_train, X_valid, Y_train, Y_valid = train_test_split(X,Y,test_size=0.2,random_state=42)
 		self.population.append(self.model)
 		for individual in self.population:
 			with tf.device('/gpu:0'):
 				K.clear_session() # keep backend clean
 				
 				# build, fit, score model
-				model = individual.build_model(learn_rate=0.001)
+				model = individual.build_model(learn_rate=0.01)
 				start_time = time.time()
-				history = model.fit(X_train, Y_train, batch_size=batch_size, epochs=nb_epoch, shuffle=False, verbose=1,validation_split=0.2)
+				history = model.fit(X_train, Y_train, batch_size=batch_size, epochs=nb_epoch, shuffle=True, verbose=1,validation_data=(X_valid,Y_valid))
 				end_time = time.time()
-				individual.start_time, individual.end_time, individual.train_time = start_time, end_time, end_time-start_time 
-				predictions_valid = model.predict(X_valid, batch_size=batch_size, verbose=1)
-				acc = history.history['acc'][-1]
-				val_acc = history.history['val_acc'][-1]
+				individual.start_time, individual.end_time, individual.train_time = start_time, end_time, end_time-start_time 				
+
+				predictions_valid = model.predict(X_test, batch_size=batch_size, verbose=1)
+				
+				
+				acc = np.sum(np.argmax() == Y_test) / len(Y_test)
+				for i in range(0,10):
+					print(str(predictions_valid[i]) + "  ----->  " + str(Y_test[i]))
 				individual.set_fitness(acc)
-				print("Final Accuracy: " + str(acc))
+				print("Final Accuracy: " + str(acc) + "%")
 
 				self.histories.append(history)
 
