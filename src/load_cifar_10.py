@@ -7,43 +7,45 @@ from keras import backend as K
 from keras.utils import np_utils
 from scipy import stats
 
-def load_cifar10_data(img_rows, img_cols, nb_train_samples=5000,nb_test_samples=500):
+num_classes = 10
 
-    # Load cifar10 training and test sets
-    (X_train, Y_train), (X_test, Y_test) = cifar10.load_data()
+def load_cifar10_data(img_rows, img_cols, nb_train_samples=1000,nb_valid_samples=200):
+
+    # Load cifar10 training and validation sets
+    (X_train, Y_train), (X_valid, Y_valid) = cifar10.load_data()
 
     # Resize trainging images
     if K.image_dim_ordering() == 'th':
         X_train = np.array([cv2.resize(img.transpose(1,2,0), (img_rows,img_cols)).transpose(2,0,1) for img in X_train[:nb_train_samples,:,:,:]])
-        X_test = np.array([cv2.resize(img.transpose(1,2,0), (img_rows,img_cols)).transpose(2,0,1) for img in X_test[:nb_test_samples,:,:,:]])
+        X_valid = np.array([cv2.resize(img.transpose(1,2,0), (img_rows,img_cols)).transpose(2,0,1) for img in X_valid[:nb_valid_samples,:,:,:]])
     else:
-        X_train = np.array([cv2.resize(img, (img_rows,img_cols)) for img in X_train[:nb_train_samples,:,:,:]])
-        X_test = np.array([cv2.resize(img, (img_rows,img_cols)) for img in X_test[:nb_test_samples,:,:,:]])
+        X_train = np.array([cv2.resize(np.divide(img,255), (img_rows,img_cols)) for img in X_train[:nb_train_samples,:,:,:]])
+        X_valid = np.array([cv2.resize(np.divide(img,255), (img_rows,img_cols)) for img in X_valid[:nb_valid_samples,:,:,:]])
 
     # Transform targets to keras compatible format
-    Y_train = np_utils.to_categorical(Y_train[:nb_train_samples], 10)
-    Y_test = np_utils.to_categorical(Y_test[:nb_test_samples], 10)
-    
-    return X_train, Y_train, X_test, Y_test
+    Y_train = np_utils.to_categorical(Y_train[:nb_train_samples], num_classes)
+    Y_valid = np_utils.to_categorical(Y_valid[:nb_valid_samples], num_classes)
 
-def load_cifar100_data(img_rows, img_cols, nb_train_samples=15000,nb_test_samples=1000):
+    return X_train, Y_train, X_valid, Y_valid
 
-    # Load cifar100 training and testing sets
-    (X_train, Y_train), (X_test, Y_test) = cifar100.load_data()
+def load_cifar100_data(img_rows, img_cols, nb_train_samples=1000,nb_valid_samples=200):
+
+    # Load cifar10 training and validation sets
+    (X_train, Y_train), (X_valid, Y_valid) = cifar100.load_data()
 
     # Resize trainging images
     if K.image_dim_ordering() == 'th':
         X_train = np.array([cv2.resize(img.transpose(1,2,0), (img_rows,img_cols)).transpose(2,0,1) for img in X_train[:nb_train_samples,:,:,:]])
-        X_test = np.array([cv2.resize(img.transpose(1,2,0), (img_rows,img_cols)).transpose(2,0,1) for img in X_test[:nb_test_samples,:,:,:]])
+        X_valid = np.array([cv2.resize(img.transpose(1,2,0), (img_rows,img_cols)).transpose(2,0,1) for img in X_valid[:nb_valid_samples,:,:,:]])
     else:
-        X_train = np.array([cv2.resize(img, (img_rows,img_cols)) for img in X_train[:nb_train_samples,:,:,:]])
-        X_test = np.array([cv2.resize(img, (img_rows,img_cols)) for img in X_test[:nb_test_samples,:,:,:]])
+        X_train = np.array([cv2.resize(np.divide(img,255), (img_rows,img_cols)) for img in X_train[:nb_train_samples,:,:,:]])
+        X_valid = np.array([cv2.resize(np.divide(img,255), (img_rows,img_cols)) for img in X_valid[:nb_valid_samples,:,:,:]])
 
     # Transform targets to keras compatible format
     Y_train = np_utils.to_categorical(Y_train[:nb_train_samples], 100)
-    Y_test = np_utils.to_categorical(Y_test[:nb_test_samples], 100)
+    Y_valid = np_utils.to_categorical(Y_valid[:nb_valid_samples], 100)
 
-    return X_train, Y_train, X_test, Y_test
+    return X_train, Y_train, X_valid, Y_valid
 
 if __name__ == "__main__":
     from matplotlib import pyplot as plt
