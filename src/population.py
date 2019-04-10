@@ -17,6 +17,7 @@ from keras import backend as K
 from keras.preprocessing.image import ImageDataGenerator
 from keras.models import model_from_json
 from sklearn.metrics import log_loss
+from keras.callbacks import EarlyStopping
 from sklearn.model_selection import train_test_split
 
 from helpers import plot_history
@@ -177,24 +178,25 @@ class Population:
 	def train_evaluate_population(self,X,Y,batch_size,nb_epoch,X_test,Y_test):
 		print("\n**************** TRAINING ****************\n")
 		X_train, X_valid, Y_train, Y_valid = train_test_split(X,Y,test_size=0.2,random_state=42)
+		Y_test = np.argmax(np.swapaxes(Y_test,0,1),axis=0)
 		self.population.append(self.model)
 		for individual in self.population:
 			with tf.device('/gpu:0'):
 				K.clear_session() # keep backend clean
+
+				# implement patient early stopping
+				es = EarlyStopping(monitor='val_loss', mode='min', verbose=1,patience=200)
 				
 				# build, fit, score model
 				model = individual.build_model(learn_rate=0.01)
 				start_time = time.time()
-				history = model.fit(X_train, Y_train, batch_size=batch_size, epochs=nb_epoch, shuffle=True, verbose=1,validation_data=(X_valid,Y_valid))
+				history = model.fit(X_train, Y_train, batch_size=batch_size, epochs=nb_epoch, shuffle=True, verbose=1,validation_data=(X_valid,Y_valid), callbacks=[es])
 				end_time = time.time()
 				individual.start_time, individual.end_time, individual.train_time = start_time, end_time, end_time-start_time 				
 
 				predictions_valid = model.predict(X_test, batch_size=batch_size, verbose=1)
-				
-				
-				acc = np.sum(np.argmax() == Y_test) / len(Y_test)
-				for i in range(0,10):
-					print(str(predictions_valid[i]) + "  ----->  " + str(Y_test[i]))
+				predictions_valid = np.argmax(np.swapaxes(predictions_valid,0,1),axis=0)
+				acc = np.sum(predictions_valid == Y_test) / len(Y_test) * 100
 				individual.set_fitness(acc)
 				print("Final Accuracy: " + str(acc) + "%")
 

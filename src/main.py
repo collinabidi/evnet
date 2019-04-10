@@ -24,16 +24,16 @@ p = [conv1,max1,conv2,max2,flatten1,dense1,dense2]
 
 pop = Population(p,size=15,k_best=5)
 
-batch_size = 32
-nb_epoch = 5
-train_num = 2000
+batch_size = 64
+nb_epoch = 15
+train_num = 1000
 test_num = 500
 
 X_train, Y_train, X_test, Y_test = load_cifar10_data(img_rows, img_cols, nb_train_samples=train_num,nb_test_samples=test_num)
-augment_ratio = 3
-#X_train, Y_train = augment_data(X_train,Y_train,batch_size,augment_ratio)
+augment_ratio = 10
+X_train, Y_train = augment_data(X_train,Y_train,batch_size,augment_ratio)
 
-generations = 2
+generations = 3
 
 for i in range(0,generations):
 	# run train and evalute

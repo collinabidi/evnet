@@ -22,6 +22,12 @@ class TimeHistory(keras.callbacks.Callback):
 
 def augment_data(X,y,batch_size,augment_size):
 	datagen = ImageDataGenerator(horizontal_flip=True,
+		rotation_range=20,
+		width_shift_range=0.20,
+		height_shift_range=0.20,
+		shear_range=0.10,
+		zoom_range=0.10,
+		fill_mode="nearest"
 		)
 	datagen.fit(X)
 	original_length = np.size(X,axis=0)
