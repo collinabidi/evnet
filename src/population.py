@@ -20,7 +20,6 @@ from sklearn.metrics import log_loss
 from keras.callbacks import EarlyStopping
 from sklearn.model_selection import train_test_split
 
-from helpers import plot_history
 
 # get current working directory and set random seed
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
@@ -61,7 +60,7 @@ class Layer:
 		return self.__dict__
 	
 	def mutate_activation(self):
-		if 'activation' in self.__dict__ and self.name is not 'output':
+		if 'activation' in self.__dict__ and self.name is not 'output' and self.__dict__['activation'] is not 'softmax':
 			self.activation = random.choice(['tanh','relu','sigmoid'])
 			print("\tmutated activation of %s to %s" % (str(self.name),str(self.activation)))
 
@@ -121,7 +120,7 @@ class Individual:
 		return Individual(new_individual,name)
 
 	# returns a copy
-	def new_copy(self, name="default name", prob=0.1):
+	def new_copy(self, name="default name",prob=0.1):
 		new_individual = copy.deepcopy(self.layers)
 		return Individual(new_individual,name)
 
@@ -166,7 +165,7 @@ class Population:
 		self.mutation = mutation
 
 		for i in range(size):
-			self.population.append(self.model.mutate(prob=mutation,name=("# "+str(self.gen_id) + "_" +str(i))))
+			self.population.append(self.model.new_copy(prob=mutation,name=("# "+str(self.gen_id) + "_" +str(i))))
 		
 		print("done initializing population")
 
@@ -181,27 +180,24 @@ class Population:
 		Y_test = np.argmax(np.swapaxes(Y_test,0,1),axis=0)
 		self.population.append(self.model)
 		for individual in self.population:
-			with tf.device('/gpu:0'):
-				K.clear_session() # keep backend clean
+			K.clear_session() # keep backend clean
 
-				# implement patient early stopping
-				es = EarlyStopping(monitor='val_loss', mode='min', verbose=1,patience=200)
-				
-				# build, fit, score model
-				model = individual.build_model(learn_rate=0.01)
-				start_time = time.time()
-				history = model.fit(X_train, Y_train, batch_size=batch_size, epochs=nb_epoch, shuffle=True, verbose=1,validation_data=(X_valid,Y_valid), callbacks=[es])
-				end_time = time.time()
-				individual.start_time, individual.end_time, individual.train_time = start_time, end_time, end_time-start_time 				
+			print("NAME: " + str(individual.name))
+			# build, fit, score model
+			model = individual.build_model(learn_rate=0.001)
+			
+			start_time = time.time()
+			history = model.fit(X_train, Y_train, batch_size=batch_size, epochs=nb_epoch, shuffle=True, verbose=1,validation_data=(X_valid,Y_valid))
+			end_time = time.time()
+			individual.start_time, individual.end_time, individual.train_time = start_time, end_time, end_time-start_time 	
 
-				predictions_valid = model.predict(X_test, batch_size=batch_size, verbose=1)
-				predictions_valid = np.argmax(np.swapaxes(predictions_valid,0,1),axis=0)
-				acc = np.sum(predictions_valid == Y_test) / len(Y_test) * 100
-				individual.set_fitness(acc)
-				print("Final Accuracy: " + str(acc) + "%")
+			predictions_valid = model.predict(X_test, batch_size=batch_size, verbose=1)
+			predictions_valid = np.argmax(np.swapaxes(predictions_valid,0,1),axis=0)
+			acc = np.sum(predictions_valid == Y_test) / len(Y_test) * 100
+			individual.set_fitness(acc)
+			print("Final Accuracy: " + str(acc) + "%")
 
-				self.histories.append(history)
-
+			self.histories.append(history)
 				# save model
 				#model_json = model.to_json()
 				#path_name = cwd+("/models/model_"+str(individual.name)+" " +str(individual.fitness))
@@ -229,6 +225,8 @@ class Population:
 		# add winners
 		for i in self.population[:self.k_best]:
 			new_pop.append(i)
+			print(" WINNER ===========> " + i.name + " :" + str(i.fitness))
+		new_pop.print_population()
 		# generate children based on winners until we run out of space in the population
 		for i in range(self.k_best,self.size):
 			parent = self.population[i % self.k_best]

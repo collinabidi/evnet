@@ -41,7 +41,7 @@ def augment_data(X,y,batch_size,augment_size):
 			break
 	return (X,y)
 
-def plot_history(histories,nb_epoch, key='binary_crossentropy'):
+def plot_history(histories,nb_epoch, key='categorical_crossentropy'):
 	plt.figure(figsize=(16,10))
 	cmap = plt.get_cmap('jet_r')
 	i = 1
