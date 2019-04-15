@@ -12,6 +12,7 @@ from keras.models import Sequential
 from keras.utils import plot_model
 from keras.layers.convolutional import Conv2D,MaxPooling2D
 from keras.layers.core import Activation,Flatten,Dense
+from keras.layers import GaussianNoise
 from keras.optimizers import SGD, Adam
 from keras import backend as K
 from keras.preprocessing.image import ImageDataGenerator
@@ -131,12 +132,13 @@ class Individual:
 			if layer.type is 'Convolution2D':
 				if 'input_shape' in layer.__dict__:
 					model.add(Conv2D(layer.nb_filter,layer.nb_row,activation=layer.activation,padding=layer.border_mode,input_shape=layer.input_shape))
+					model.add(GaussianNoise(0.1))
 				else:
 					model.add(Conv2D(layer.nb_filter,layer.nb_row,activation=layer.activation,padding=layer.border_mode))
 			elif layer.type is 'MaxPooling2D':
 				model.add(MaxPooling2D(pool_size=layer.pool_size,strides=layer.strides,data_format="channels_first"))
 			elif layer.type is 'Dense':
-				model.add(Dense(layer.output_dim,activation=layer.activation))
+				model.add(Dense(layer.output_dim,activation=layer.activation,use_bias=False))
 			elif layer.type is 'Flatten':
 				model.add(Flatten())
 			elif layer.type is 'Dropout':
@@ -176,7 +178,6 @@ class Population:
 
 	def train_evaluate_population(self,X,Y,batch_size,nb_epoch,X_test,Y_test):
 		print("\n**************** TRAINING ****************\n")
-		X_train, X_valid, Y_train, Y_valid = train_test_split(X,Y,test_size=0.2,random_state=42)
 		Y_test = np.argmax(np.swapaxes(Y_test,0,1),axis=0)
 		self.population.append(self.model)
 		for individual in self.population:
@@ -187,7 +188,7 @@ class Population:
 			model = individual.build_model(learn_rate=0.001)
 			
 			start_time = time.time()
-			history = model.fit(X_train, Y_train, batch_size=batch_size, epochs=nb_epoch, shuffle=True, verbose=1,validation_data=(X_valid,Y_valid))
+			history = model.fit(X, Y, batch_size=batch_size, epochs=nb_epoch, shuffle=True, verbose=1,validation_split=0.2)
 			end_time = time.time()
 			individual.start_time, individual.end_time, individual.train_time = start_time, end_time, end_time-start_time 	
 
