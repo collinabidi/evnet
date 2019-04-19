@@ -27,8 +27,7 @@ def augment_data(X,y,batch_size,augment_size):
 		height_shift_range=0.20,
 		shear_range=0.10,
 		zoom_range=0.10,
-		fill_mode="nearest",
-		zca_whitening=True
+		fill_mode="nearest"
 		)
 	datagen.fit(X)
 	original_length = np.size(X,axis=0)

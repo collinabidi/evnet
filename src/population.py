@@ -180,6 +180,7 @@ class Population:
 		print("\n**************** TRAINING ****************\n")
 		Y_test = np.argmax(np.swapaxes(Y_test,0,1),axis=0)
 		self.population.append(self.model)
+		callbacks = [EarlyStopping(monitor='val_loss',patience=2)]
 		for individual in self.population:
 			K.clear_session() # keep backend clean
 
@@ -188,7 +189,7 @@ class Population:
 			model = individual.build_model(learn_rate=0.001)
 			
 			start_time = time.time()
-			history = model.fit(X, Y, batch_size=batch_size, epochs=nb_epoch, shuffle=True, verbose=1,validation_split=0.2)
+			history = model.fit(X, Y, batch_size=batch_size, epochs=nb_epoch, shuffle=True, verbose=1,validation_split=0.2,callbacks=callbacks)
 			end_time = time.time()
 			individual.start_time, individual.end_time, individual.train_time = start_time, end_time, end_time-start_time 	
 

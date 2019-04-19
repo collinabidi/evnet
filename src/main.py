@@ -11,7 +11,7 @@ from helpers import plot_history
 if __name__ == "__main__":
 	img_rows, img_cols = 32, 32 # Resolution of inputs
 	channel = 3 # rgb
-	num_classes = 10 # cifar 100
+	num_classes = 10 # cifar 10
 
 	# lenet model for testing
 	conv1 = {'name':'conv1','type':'Convolution2D','border_mode':'same','nb_filter':20,'nb_row':5,'nb_col':5,'activation':'relu','input_shape':(img_rows,img_cols,channel)}
