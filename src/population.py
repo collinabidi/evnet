@@ -7,7 +7,6 @@ import os
 import time
 import tensorflow as tf
 
-from get_size import get_size
 from keras.models import Sequential
 from keras.utils import plot_model
 from keras.layers.convolutional import Conv2D,MaxPooling2D
@@ -20,6 +19,7 @@ from keras.models import model_from_json
 from sklearn.metrics import log_loss
 from keras.callbacks import EarlyStopping
 from sklearn.model_selection import train_test_split
+from keras import initializers
 
 
 # get current working directory and set random seed
@@ -131,14 +131,14 @@ class Individual:
 			print(layer.__dict__)
 			if layer.type is 'Convolution2D':
 				if 'input_shape' in layer.__dict__:
-					model.add(Conv2D(layer.nb_filter,layer.nb_row,activation=layer.activation,padding=layer.border_mode,input_shape=layer.input_shape))
+					model.add(Conv2D(layer.nb_filter,layer.nb_row,activation=layer.activation,padding=layer.border_mode,input_shape=layer.input_shape,kernel_initializer="random_normal"))
 					model.add(GaussianNoise(0.1))
 				else:
-					model.add(Conv2D(layer.nb_filter,layer.nb_row,activation=layer.activation,padding=layer.border_mode))
+					model.add(Conv2D(layer.nb_filter,layer.nb_row,activation=layer.activation,padding=layer.border_mode,kernel_initializer="random_normal"))
 			elif layer.type is 'MaxPooling2D':
 				model.add(MaxPooling2D(pool_size=layer.pool_size,strides=layer.strides,data_format="channels_first"))
 			elif layer.type is 'Dense':
-				model.add(Dense(layer.output_dim,activation=layer.activation,use_bias=False))
+				model.add(Dense(layer.output_dim,activation=layer.activation,kernel_initializer="random_normal"))
 			elif layer.type is 'Flatten':
 				model.add(Flatten())
 			elif layer.type is 'Dropout':
@@ -167,7 +167,7 @@ class Population:
 		self.mutation = mutation
 
 		for i in range(size):
-			self.population.append(self.model.new_copy(prob=mutation,name=("# "+str(self.gen_id) + "_" +str(i))))
+			self.population.append(self.model.mutate(prob=mutation,name=("# "+str(self.gen_id) + "_" +str(i))))
 		
 		print("done initializing population")
 
@@ -176,20 +176,20 @@ class Population:
 			individual.print_individual()
 
 
-	def train_evaluate_population(self,X,Y,batch_size,nb_epoch,X_test,Y_test):
+	def train_evaluate_population(self,X,Y,X_valid,Y_valid,batch_size,nb_epoch,X_test,Y_test):
 		print("\n**************** TRAINING ****************\n")
 		Y_test = np.argmax(np.swapaxes(Y_test,0,1),axis=0)
 		self.population.append(self.model)
-		callbacks = [EarlyStopping(monitor='val_loss',patience=2)]
+		callbacks = [EarlyStopping(monitor='val_acc',min_delta=0.005,patience=3,mode='max',verbose=1)]
 		for individual in self.population:
 			K.clear_session() # keep backend clean
 
 			print("NAME: " + str(individual.name))
 			# build, fit, score model
-			model = individual.build_model(learn_rate=0.001)
+			model = individual.build_model(learn_rate=0.005)
 			
 			start_time = time.time()
-			history = model.fit(X, Y, batch_size=batch_size, epochs=nb_epoch, shuffle=True, verbose=1,validation_split=0.2,callbacks=callbacks)
+			history = model.fit(X, Y, batch_size=batch_size, epochs=nb_epoch, shuffle=True, verbose=1,validation_data=(X_valid,Y_valid),callbacks=callbacks)
 			end_time = time.time()
 			individual.start_time, individual.end_time, individual.train_time = start_time, end_time, end_time-start_time 	
 
@@ -228,7 +228,6 @@ class Population:
 		for i in self.population[:self.k_best]:
 			new_pop.append(i)
 			print(" WINNER ===========> " + i.name + " :" + str(i.fitness))
-		new_pop.print_population()
 		# generate children based on winners until we run out of space in the population
 		for i in range(self.k_best,self.size):
 			parent = self.population[i % self.k_best]
