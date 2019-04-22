@@ -23,7 +23,7 @@ const HPEC_USERNAME = 'collin';
 const HPEC_DUMP_FILENAME = 'dump';
 
 const HPC_STAGING_PATH = './staging';
-const HPEC_STAGING_PATH = `/home/${HPEC_USERNAME}/staging/${HPEC_DUMP_FILE}`;
+const HPEC_STAGING_PATH = `/home/${HPEC_USERNAME}/staging/${HPEC_DUMP_FILENAME}`;
 
 const HPC_2_HPEC_PORT = 3000;
 const HPEC_TO_HPC_PORT = 4000;
@@ -38,14 +38,12 @@ function scp_response((req, res)) {
   res.sendStatus(200);
 }
 
-app.route('/')
-.get(scp_response);
+app.route('/').get(scp_response);
 
 app.listen(HPEC_TO_HPC_PORT, (err) => {
   console.log('APP IS LISTENING ON SERVER ON PORT', PORT);
 
   while (!done) {
-
     // create child process for evnet
     const evnet = execFileSync('python', ['../src/main.py']);
     // net is trained, move file to staging area
