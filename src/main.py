@@ -7,11 +7,12 @@ from population import Population
 from helpers import augment_data
 from load_cifar_10 import load_cifar10_data, load_cifar100_data
 from helpers import plot_history
+from sklearn.model_selection import train_test_split
 
 if __name__ == "__main__":
 	img_rows, img_cols = 32, 32 # Resolution of inputs
 	channel = 3 # rgb
-	num_classes = 10 # cifar 100
+	num_classes = 10 # cifar 10
 
 	# lenet model for testing
 	conv1 = {'name':'conv1','type':'Convolution2D','border_mode':'same','nb_filter':20,'nb_row':5,'nb_col':5,'activation':'relu','input_shape':(img_rows,img_cols,channel)}
@@ -24,22 +25,24 @@ if __name__ == "__main__":
 	p = [conv1,max1,conv2,max2,flatten1,dense1,dense2]
 
 
-	pop = Population(p,size=5,k_best=2)
+	pop = Population(p,size=10,k_best=5)
 
-	batch_size = 16
+	batch_size = 1024
 	nb_epoch = 25
-	train_num = 5000
-	test_num = 1000
+	train_num = 50000
+	test_num = 10000
 
 	X_train, Y_train, X_test, Y_test = load_cifar10_data(img_rows, img_cols, nb_train_samples=train_num,nb_test_samples=test_num)
-	augment_ratio = 5
-	X_train, Y_train = augment_data(X_train,Y_train,batch_size,augment_ratio)
+	X_test, X_valid, Y_test, Y_valid = train_test_split(X_test, Y_test, test_size=0.2)
+
+	#augment_ratio = 5
+	#X_train, Y_train = augment_data(X_train,Y_train,batch_size,augment_ratio)
 
 	generations = 3
 
 	for i in range(0,generations):
 		# run train and evalute
-		pop.train_evaluate_population(X_train,Y_train,batch_size,nb_epoch,X_test,Y_test)
+		pop.train_evaluate_population(X_train,Y_train,X_valid,Y_valid,batch_size,nb_epoch,X_test,Y_test)
 		pop.evolve()
 
 	for gen in range(0,generations):
