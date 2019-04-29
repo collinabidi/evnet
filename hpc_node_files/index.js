@@ -19,7 +19,7 @@ let done = false;
 let lock = false;
 
 const TFLITE_NETWORK_PATH = '../src/dump';
-const HPEC_USERNAME = 'collin';
+const HPEC_USERNAME = 'pi';
 const HPEC_DUMP_FILENAME = 'dump';
 
 const HPC_STAGING_PATH = './staging';

@@ -12,7 +12,8 @@ from keras.utils import plot_model
 from keras.layers.convolutional import Conv2D,MaxPooling2D
 from keras.layers.core import Activation,Flatten,Dense
 from keras.layers import GaussianNoise
-from keras.optimizers import SGD, Adam
+from keras.optimizers import SGD, Adam, Adadelta
+from sklearn import metrics
 from keras import backend as K
 from keras.preprocessing.image import ImageDataGenerator
 from keras.models import model_from_json
@@ -21,6 +22,7 @@ from keras.callbacks import EarlyStopping
 from sklearn.model_selection import train_test_split
 from keras import initializers
 
+from helpers import freeze_session
 
 # get current working directory and set random seed
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
@@ -131,22 +133,22 @@ class Individual:
 			print(layer.__dict__)
 			if layer.type is 'Convolution2D':
 				if 'input_shape' in layer.__dict__:
-					model.add(Conv2D(layer.nb_filter,layer.nb_row,activation=layer.activation,padding=layer.border_mode,input_shape=layer.input_shape,kernel_initializer="random_normal"))
-					model.add(GaussianNoise(0.1))
+					model.add(Conv2D(filters=layer.nb_filter,kernel_size=(layer.nb_row,layer.nb_row),activation=layer.activation,padding=layer.border_mode,input_shape=layer.input_shape))
+					#model.add(GaussianNoise(0.1))
 				else:
-					model.add(Conv2D(layer.nb_filter,layer.nb_row,activation=layer.activation,padding=layer.border_mode,kernel_initializer="random_normal"))
+					model.add(Conv2D(filters=layer.nb_filter,kernel_size=(layer.nb_row,layer.nb_row),activation=layer.activation,padding=layer.border_mode))
 			elif layer.type is 'MaxPooling2D':
-				model.add(MaxPooling2D(pool_size=layer.pool_size,strides=layer.strides,data_format="channels_first"))
+				model.add(MaxPooling2D(pool_size=layer.pool_size,strides=layer.strides,data_format="channels_last"))
 			elif layer.type is 'Dense':
-				model.add(Dense(layer.output_dim,activation=layer.activation,kernel_initializer="random_normal"))
+				model.add(Dense(units=layer.output_dim,activation=layer.activation))
 			elif layer.type is 'Flatten':
 				model.add(Flatten())
 			elif layer.type is 'Dropout':
 				model.add(Dropout(layer.p))
 
-		sgd = SGD(lr=learn_rate, decay=1e-6, momentum=0.9, nesterov=True)
-		#adam = Adam(lr=learn_rate,beta_1=0.9,beta_2=0.999,epsilon=1e-08)
-		model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
+		#sgd = SGD(lr=0.1,decay=0.0, momentum=0.6)
+		#adam = Adam(lr=0.002,beta_1=0.9,beta_2=0.999,epsilon=1e-08,decay=0.0)
+		model.compile(optimizer=Adadelta(), loss='categorical_crossentropy', metrics=['accuracy'])
 
 		return model
 
@@ -167,7 +169,7 @@ class Population:
 		self.mutation = mutation
 
 		for i in range(size):
-			self.population.append(self.model.mutate(prob=mutation,name=("# "+str(self.gen_id) + "_" +str(i))))
+			self.population.append(self.model.new_copy(prob=mutation,name=(str(self.gen_id) + "_" +str(i))))
 		
 		print("done initializing population")
 
@@ -178,11 +180,11 @@ class Population:
 
 	def train_evaluate_population(self,X,Y,X_valid,Y_valid,batch_size,nb_epoch,X_test,Y_test):
 		print("\n**************** TRAINING ****************\n")
-		Y_test = np.argmax(np.swapaxes(Y_test,0,1),axis=0)
+		#Y_test = np.argmax(np.swapaxes(Y_test,0,1),axis=0)
 		self.population.append(self.model)
 		callbacks = [EarlyStopping(monitor='val_acc',min_delta=0.005,patience=3,mode='max',verbose=1)]
 		for individual in self.population:
-			K.clear_session() # keep backend clean
+			#K.clear_session() # keep backend clean
 
 			print("NAME: " + str(individual.name))
 			# build, fit, score model
@@ -194,19 +196,19 @@ class Population:
 			individual.start_time, individual.end_time, individual.train_time = start_time, end_time, end_time-start_time 	
 
 			predictions_valid = model.predict(X_test, batch_size=batch_size, verbose=1)
-			predictions_valid = np.argmax(np.swapaxes(predictions_valid,0,1),axis=0)
+			#predictions_valid = np.argmax(np.swapaxes(predictions_valid,0,1),axis=0)
 			acc = np.sum(predictions_valid == Y_test) / len(Y_test) * 100
 			individual.set_fitness(acc)
 			print("Final Accuracy: " + str(acc) + "%")
-
+			
+			# confused? me too
+			matrix = metrics.confusion_matrix(Y_test, predictions_valid)
+			print(matrix)
+			
 			self.histories.append(history)
-				# save model
-				#model_json = model.to_json()
-				#path_name = cwd+("/models/model_"+str(individual.name)+" " +str(individual.fitness))
-				#with open(path_name+".json","w") as json_file:
-				#	json_file.write(model_json)
-				# save weights
-				#model.save_weights(path_name+".h5")
+
+			# Save tf.keras model in HDF5 format.
+			model.save("models/"+str(individual.name)+".h5")
 		
 		# sort the results
 		self.population.sort(key=lambda x: x.fitness)
@@ -214,7 +216,7 @@ class Population:
 		# plot top k results and save to generation histories
 		h = [(name,history) for name, history in zip([i.name for i in self.population[:self.k_best]],self.histories[:self.k_best])]
 		self.generation_histories[self.gen_id] = h
-
+		return self.population[0]
 		print("\n******************************************\n")
 
 
@@ -231,7 +233,8 @@ class Population:
 		# generate children based on winners until we run out of space in the population
 		for i in range(self.k_best,self.size):
 			parent = self.population[i % self.k_best]
-			new_pop.append(parent.mutate(prob=self.mutation,name=("# " + str(self.gen_id) + "_" + str(i))))
+			new_pop.append(parent.mutate(prob=self.mutation,name=(str(self.gen_id) + "_" + str(i))))
 
 		self.population = new_pop
+		return self.population[0]
 		print("\n******************************************\n")

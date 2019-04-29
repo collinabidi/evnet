@@ -20,26 +20,6 @@ class TimeHistory(keras.callbacks.Callback):
 		self.times.append(time.time()-self.epoch_time_start)
 
 
-def augment_data(X,y,batch_size,augment_size):
-	datagen = ImageDataGenerator(horizontal_flip=True,
-		rotation_range=20,
-		width_shift_range=0.20,
-		height_shift_range=0.20,
-		zoom_range=0.10,
-		fill_mode="nearest"
-		)
-	datagen.fit(X)
-	original_length = np.size(X,axis=0)
-	batches = 0
-	for X_batch, y_batch in datagen.flow(X, y, batch_size=original_length):
-		X = np.vstack((X,X_batch))
-		y = np.vstack((y,y_batch))
-		print(y.shape)
-		batches = batches + 1
-		if batches >= augment_size:
-			break
-	return (X,y)
-
 def plot_history(histories,nb_epoch, key='categorical_crossentropy'):
 	plt.figure(figsize=(16,10))
 	cmap = plt.get_cmap('jet_r')
@@ -55,3 +35,32 @@ def plot_history(histories,nb_epoch, key='categorical_crossentropy'):
 	plt.legend()
 	plt.xlim([0,max(history.epoch)])
 	plt.show()
+
+# FROM https://stackoverflow.com/questions/45466020/how-to-export-keras-h5-to-tensorflow-pb
+def freeze_session(session, keep_var_names=None, output_names=None, clear_devices=True):
+    """
+    Freezes the state of a session into a pruned computation graph.
+
+    Creates a new computation graph where variable nodes are replaced by
+    constants taking their current value in the session. The new graph will be
+    pruned so subgraphs that are not necessary to compute the requested
+    outputs are removed.
+    @param session The TensorFlow session to be frozen.
+    @param keep_var_names A list of variable names that should not be frozen,
+                          or None to freeze all the variables in the graph.
+    @param output_names Names of the relevant graph outputs.
+    @param clear_devices Remove the device directives from the graph for better portability.
+    @return The frozen graph definition.
+    """
+    graph = session.graph
+    with graph.as_default():
+        freeze_var_names = list(set(v.op.name for v in tf.global_variables()).difference(keep_var_names or []))
+        output_names = output_names or []
+        output_names += [v.op.name for v in tf.global_variables()]
+        input_graph_def = graph.as_graph_def()
+        if clear_devices:
+            for node in input_graph_def.node:
+                node.device = ""
+        frozen_graph = tf.graph_util.convert_variables_to_constants(
+            session, input_graph_def, output_names, freeze_var_names)
+        return frozen_graph
