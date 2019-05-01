@@ -16,7 +16,7 @@ from keras.optimizers import SGD, Adam, Adadelta
 from sklearn import metrics
 from keras import backend as K
 from sklearn.metrics import log_loss
-from keras.callbacks import EarlyStopping
+from keras.callbacks import EarlyStopping, ModelCheckpoint
 from sklearn.model_selection import train_test_split
 from keras import initializers
 from helpers import freeze_session
@@ -187,7 +187,6 @@ class Population:
 	def train_evaluate_population(self,X,Y,X_valid,Y_valid,batch_size,nb_epoch,X_test,Y_test):
 		print("\n**************** TRAINING ****************\n")
 		Y_test = np.argmax(np.swapaxes(Y_test,0,1),axis=0)
-		callbacks = [EarlyStopping(monitor='val_acc',min_delta=0.005,patience=3,mode='max',verbose=1)]
 		for individual in self.population:
 			K.clear_session() # keep backend clean
 
@@ -198,6 +197,8 @@ class Population:
 				model = individual.build_model(learn_rate=0.005)
 				print("\n\nNAME: " + str(individual.name))
 				print(model.summary())
+				
+				callbacks = [EarlyStopping(monitor='val_acc',min_delta=0.005,patience=3,mode='max',verbose=1),ModelCheckpoint("models/"+individual.name+".ckpt",save_weights_only=True,verbose=1)]
 
 				# FIT MODEL and record times
 				start_time = time.time()
@@ -226,8 +227,11 @@ class Population:
 				self.histories.append(history)
 
 				# Save tf.keras model in HDF5 format.
-				model.save("models/"+str(individual.name)+".h5")
-
+				model.save_weights("models/"+str(individual.name)+".h5")
+				# serialize model to JSON
+				model_json = model.to_json()
+				with open("models/"+str(individual.name)+".json", "w") as json_file:
+					json_file.write(model_json)
 				# make sure we don't train again
 				individual.trained = True
 		
@@ -258,7 +262,7 @@ class Population:
 		# generate children based on winners until we run out of space in the population
 		for i in range(0,self.size):
 			parent = old_pop[i % self.k_best]
-			new_pop.append(parent.mutate(prob=0.2,gen_id=self.gen_id+1,name=("Gen"+str(self.gen_id+1) + "_Ind" +str(i))))
+			new_pop.append(parent.mutate(prob=0.2,gen_id=self.gen_id,name=("Gen"+str(self.gen_id) + "_Ind" +str(i))))
 		
 		self.population = new_pop
 		return self.population[0]

@@ -4,16 +4,22 @@ import tensorflow as tf
 import keras,random,cv2,os,sys,getopt
 import math
 import matplotlib
+import matplotlib.ticker as ticker
 
 from keras import backend as K
+from keras.models import load_model
 from keras.utils import np_utils
 from scipy import stats
 from matplotlib import pyplot as plt
 from matplotlib.collections import LineCollection
 from matplotlib import colors as mcolors
+
 from population import Population
 from helpers import plot_history,load_cifar10_data,load_cifar100_data,load_mnist_data
 from sklearn.model_selection import train_test_split
+from tensorflow.python.saved_model import builder as saved_model_builder
+from tensorflow.python.saved_model.signature_def_utils import predict_signature_def
+from tensorflow.python.saved_model import tag_constants
 
 # get current working directory 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
@@ -80,6 +86,7 @@ def main(argv):
 	dense1 = {'name':'dense2','type':'Dense','output_dim':120,'activation':'relu'}
 	dense2 = {'name':'dense2','type':'Dense','output_dim':84,'activation':'relu'}
 	dense3 = {'name':'dense2','type':'Dense','output_dim':num_classes,'activation':'softmax'}
+
 	p = [conv1,max1,conv2,max2,flatten1,dense1,dense2,dense3]
 
 	pop = Population(p,size=pop_size,k_best=3)
@@ -109,10 +116,11 @@ def main(argv):
 				z[i+gen*pop_size] = gen
 				i = i+1
 				name_list.append(name)
+
 	new_z = [0,1,2,3,4]
 	# fill in values for early stopping!
 	for i in range(0,len(lines)):
-		while len(lines[i])<10:
+		while len(lines[i])<nb_epoch:
 			lines[i].append(lines[i][-1])
 	
 	fig, ax = plt.subplots(1,1,figsize=(20,10),dpi=120)
@@ -130,7 +138,7 @@ def main(argv):
 	x = np.arange(1,nb_epoch+1)
 	coord = [np.column_stack((x,y)) for y in lines]
 	line_c = LineCollection(coord,linestyle='solid',cmap=cmap,norm=norm)
-	line_c.set_array(np.array(new_z))
+	line_c.set_array(np.array(x))
 	lineplot = ax.add_collection(line_c)
 
 	# do colorbar stuff
@@ -156,7 +164,17 @@ def main(argv):
 	tflite_model = converter.convert()
 	open("models/winners/"+str(big_poppa.name)+".tflite", "wb").write(tflite_model)
 
+	# ALSO CONVERT TO PROTOBUF
+	K.set_learning_phase(0)
+	# load model
+	model = load_model("models/"+keras_file)
+	builder = saved_model_builder.SavedModelBuilder("models/winners/")
+	signature = predict_signature_def(inputs={"images":model.input},outputs={"scores":model.output})
+	
+	with K.get_session() as sess:
+		builder.add_meta_graph_and_variables(sess=sess,tags=[tag_constants.SERVING],signature_def_map={"predict":signature})
 
+	builder.save()
 
 if __name__ == "__main__":
 	main(sys.argv[1:])
