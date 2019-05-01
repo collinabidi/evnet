@@ -15,13 +15,10 @@ from keras.layers import GaussianNoise
 from keras.optimizers import SGD, Adam, Adadelta
 from sklearn import metrics
 from keras import backend as K
-from keras.preprocessing.image import ImageDataGenerator
-from keras.models import model_from_json
 from sklearn.metrics import log_loss
 from keras.callbacks import EarlyStopping
 from sklearn.model_selection import train_test_split
 from keras import initializers
-
 from helpers import freeze_session
 
 # get current working directory and set random seed
@@ -70,8 +67,12 @@ class Layer:
 
 	def mutate_kernel(self):
 		if 'nb_row' in self.__dict__ and self.name is not 'output':
-			rand_factor = random.choice([0.5,1.0,2.0])
-			self.nb_row = int(math.floor(self.nb_row* rand_factor))
+			# make sure no zero kernels happen
+			new_val = 0
+			while new_val == 0:
+				rand_factor = random.choice([0.5,1.0,2.0])
+				new_val = int(math.floor(self.nb_row* rand_factor))
+			self.nb_row = new_val
 			print("\tmutated nb_row of %s to %s" % (str(self.name),str(self.nb_row)))
 
 class Individual:
@@ -83,7 +84,9 @@ class Individual:
 
 	layers = []
 	train_time = 0
-
+	num_parameters = 0
+	trained = False
+	gen_id = 0
 	def __init__(self,gene,name,fitness=-1):
 		self.name = name
 		self.layers = []
@@ -91,6 +94,7 @@ class Individual:
 			self.append_layer(layer)
 		self.fitness = fitness
 		self.num_layers = len(self.layers)
+		self.trained = False
 
 	
 	def __iter__(self):
@@ -110,14 +114,15 @@ class Individual:
 		self.fitness = score
 
 	# todo returns a new individual that's based on the original one but mutated
-	def mutate(self, name="default name", prob=0.2):
+	def mutate(self, name="default name", prob=0.2, gen_id=0):
+		self.gen_id = gen_id
 		new_individual = copy.deepcopy(self.layers)
 		for layer in new_individual:
 			r = random.uniform(0.0,1.0)
 			if r < prob and layer.name is not 'output':
 				layer.mutate_activation()
 			r = random.uniform(0.0,1.0)
-			if r < prob and layer.name is not 'output':
+			if r < prob and layer.name is not 'output' and 'nb_row' in layer.__dict__:
 				print("KERNEL MUTATION OF %s" % (str(name)))
 				layer.mutate_kernel()
 		return Individual(new_individual,name)
@@ -130,7 +135,6 @@ class Individual:
 	def build_model(self,learn_rate=0.001):
 		model = Sequential()
 		for layer in self.layers:
-			print(layer.__dict__)
 			if layer.type is 'Convolution2D':
 				if 'input_shape' in layer.__dict__:
 					model.add(Conv2D(filters=layer.nb_filter,kernel_size=(layer.nb_row,layer.nb_row),activation=layer.activation,padding=layer.border_mode,input_shape=layer.input_shape))
@@ -159,17 +163,19 @@ class Population:
 	histories = []
 	gen_id = 0
 	generation_histories = {}
+	original_accuracy=0
 
-	def __init__(self,model,size=10,crossover=0.8,k_best=10,mutation=0.2):
+	def __init__(self,model,size=10,crossover=0.8,k_best=10,mutation=0.3):
 		print("initializing population")
-		self.model = Individual(model,"Grandparent")
+		self.model = Individual(model,"Original")
 		self.size = size
 		self.crossover = crossover
 		self.k_best = k_best
 		self.mutation = mutation
+		self.gen_id = 0
 
 		for i in range(size):
-			self.population.append(self.model.new_copy(prob=mutation,name=(str(self.gen_id) + "_" +str(i))))
+			self.population.append(self.model.mutate(prob=mutation,gen_id = 0,name=("Gen"+str(self.gen_id) + "_Ind" +str(i))))
 		
 		print("done initializing population")
 
@@ -180,41 +186,57 @@ class Population:
 
 	def train_evaluate_population(self,X,Y,X_valid,Y_valid,batch_size,nb_epoch,X_test,Y_test):
 		print("\n**************** TRAINING ****************\n")
-		#Y_test = np.argmax(np.swapaxes(Y_test,0,1),axis=0)
-		self.population.append(self.model)
+		Y_test = np.argmax(np.swapaxes(Y_test,0,1),axis=0)
 		callbacks = [EarlyStopping(monitor='val_acc',min_delta=0.005,patience=3,mode='max',verbose=1)]
 		for individual in self.population:
-			#K.clear_session() # keep backend clean
+			K.clear_session() # keep backend clean
 
-			print("NAME: " + str(individual.name))
-			# build, fit, score model
-			model = individual.build_model(learn_rate=0.005)
-			
-			start_time = time.time()
-			history = model.fit(X, Y, batch_size=batch_size, epochs=nb_epoch, shuffle=True, verbose=1,validation_data=(X_valid,Y_valid),callbacks=callbacks)
-			end_time = time.time()
-			individual.start_time, individual.end_time, individual.train_time = start_time, end_time, end_time-start_time 	
+			# BUILD MODEL
+			if individual.trained == True:
+				print("Already trained " + str(individual.name))
+			else:
+				model = individual.build_model(learn_rate=0.005)
+				print("\n\nNAME: " + str(individual.name))
+				print(model.summary())
 
-			predictions_valid = model.predict(X_test, batch_size=batch_size, verbose=1)
-			#predictions_valid = np.argmax(np.swapaxes(predictions_valid,0,1),axis=0)
-			acc = np.sum(predictions_valid == Y_test) / len(Y_test) * 100
-			individual.set_fitness(acc)
-			print("Final Accuracy: " + str(acc) + "%")
-			
-			# confused? me too
-			matrix = metrics.confusion_matrix(Y_test, predictions_valid)
-			print(matrix)
-			
-			self.histories.append(history)
+				# FIT MODEL and record times
+				start_time = time.time()
+				history = model.fit(X, Y, batch_size=batch_size, epochs=nb_epoch, shuffle=True, verbose=1,validation_data=(X_valid,Y_valid),callbacks=callbacks)
+				end_time = time.time()
+				individual.start_time, individual.end_time, individual.train_time = start_time, end_time, end_time-start_time 	
 
-			# Save tf.keras model in HDF5 format.
-			model.save("models/"+str(individual.name)+".h5")
+				# SCORE MODEL
+				predictions_valid = model.predict(X_test, batch_size=batch_size, verbose=1)
+				predictions_valid = np.argmax(np.swapaxes(predictions_valid,0,1),axis=0)
+				acc = np.sum(predictions_valid == Y_test) / len(Y_test) * 100
+				if individual.name=="Original":
+					print("\n---------- ORIGINAL ACCURACY " + str(acc) + "% ----------")
+					original_accuracy = acc
+				else:
+					print("\n---------- FINAL ACCURACY " + str(acc) + "% ----------")
+				individual.set_fitness(acc)
+				individual.num_parameters = model.count_params()
+				# confused? me too
+				#print("\n############ CONFUSION MATRIX ############")
+				#matrix = metrics.confusion_matrix(Y_test, predictions_valid)
+				#print(matrix)
+				#print("\n##########################################")
+
+				# save the history for graphing
+				self.histories.append(history)
+
+				# Save tf.keras model in HDF5 format.
+				model.save("models/"+str(individual.name)+".h5")
+
+				# make sure we don't train again
+				individual.trained = True
 		
 		# sort the results
 		self.population.sort(key=lambda x: x.fitness)
+		self.population.reverse()
 
-		# plot top k results and save to generation histories
-		h = [(name,history) for name, history in zip([i.name for i in self.population[:self.k_best]],self.histories[:self.k_best])]
+		# save results to generation histories
+		h = [(name,history) for name, history in zip([i.name for i in self.population],self.histories)]
 		self.generation_histories[self.gen_id] = h
 		return self.population[0]
 		print("\n******************************************\n")
@@ -224,17 +246,20 @@ class Population:
 	def evolve(self):
 		print("\n**************** EVOLVING ****************\n")
 		new_pop = []
+		old_pop = []
 		self.gen_id = self.gen_id + 1
+
 		self.population.sort(key=lambda x: x.fitness)
+		self.population.reverse()
 		# add winners
 		for i in self.population[:self.k_best]:
-			new_pop.append(i)
-			print(" WINNER ===========> " + i.name + " :" + str(i.fitness))
+			old_pop.append(i)
+			print("WINNER ==> " + i.name + " :" + str(i.fitness))
 		# generate children based on winners until we run out of space in the population
-		for i in range(self.k_best,self.size):
-			parent = self.population[i % self.k_best]
-			new_pop.append(parent.mutate(prob=self.mutation,name=(str(self.gen_id) + "_" + str(i))))
-
+		for i in range(0,self.size):
+			parent = old_pop[i % self.k_best]
+			new_pop.append(parent.mutate(prob=0.2,gen_id=self.gen_id+1,name=("Gen"+str(self.gen_id+1) + "_Ind" +str(i))))
+		
 		self.population = new_pop
 		return self.population[0]
 		print("\n******************************************\n")
